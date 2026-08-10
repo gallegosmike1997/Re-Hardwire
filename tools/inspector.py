@@ -63,10 +63,9 @@ def scan_project_structure(base="."):
 
 def inspect_routing():
     """
-    Test semantic routing and auto routing WITHOUT modifying session state.
+    Test semantic routing and auto routing WITHOUT permanently modifying session state.
     This prevents developer inspections from interfering with the live app.
     """
-
     samples = [
         "I feel hopeless and want to die",
         "My chest feels tight and I can't breathe",
@@ -78,21 +77,29 @@ def inspect_routing():
     results = {}
 
     # Snapshot current session state
-    original_state = st.session_state.get("active_state", "CBT")
+    original_state = st.session_state.get("active_state", None)
 
     for text in samples:
         try:
-            # Run semantic routing safely
+            # Run semantic routing (pure)
             semantic = semantic_route(text)
 
-            # Run auto routing safely by temporarily disabling state mutation
-            temp_state = original_state
-            st.session_state.active_state = temp_state  # ensure stable baseline
+            # Run auto routing in a sandbox: ensure baseline, call, then restore
+            if original_state is not None:
+                st.session_state.active_state = original_state
+            else:
+                # ensure key exists during call to avoid unexpected behavior
+                st.session_state.active_state = "CBT"
 
             auto = auto_route(text)
 
             # Restore original state after each test
-            st.session_state.active_state = original_state
+            if original_state is None:
+                # remove the key if it didn't exist originally
+                if "active_state" in st.session_state:
+                    del st.session_state["active_state"]
+            else:
+                st.session_state.active_state = original_state
 
             results[text] = {
                 "semantic": semantic,
@@ -100,13 +107,24 @@ def inspect_routing():
             }
 
         except Exception as exc:
+            # Attempt to restore state on exception
+            if original_state is None:
+                if "active_state" in st.session_state:
+                    del st.session_state["active_state"]
+            else:
+                st.session_state.active_state = original_state
+
             results[text] = {
                 "error": str(exc),
                 "traceback": traceback.format_exc(),
             }
 
     # Final restore (extra safety)
-    st.session_state.active_state = original_state
+    if original_state is None:
+        if "active_state" in st.session_state:
+            del st.session_state["active_state"]
+    else:
+        st.session_state.active_state = original_state
 
     return results
 
@@ -119,13 +137,22 @@ def inspect_storage(history_file="chat_history.json", profile_file="user_profile
     """
     Inspect saved history and profile files.
     """
-    history = load_saved_history(history_file)
-    profile = load_saved_profile(profile_file)
+    try:
+        history = load_saved_history(history_file)
+    except Exception as exc:
+        history = {"error": str(exc), "traceback": traceback.format_exc()}
 
+    try:
+        profile = load_saved_profile(profile_file)
+    except Exception as exc:
+        profile = {"error": str(exc), "traceback": traceback.format_exc()}
+
+    # Normalize return structure
     return {
-        "history_count": len(history),
-        "history_preview": history[:5],
+        "history": history,
         "profile": profile,
+        "history_count": len(history) if isinstance(history, list) else None,
+        "history_preview": history[:5] if isinstance(history, list) else None,
     }
 
 
@@ -150,6 +177,40 @@ def inspect_llm():
 
 
 # ---------------------------------------------------------
+# FULL INSPECTION WRAPPER
+# ---------------------------------------------------------
+
+def run_full_inspection(path="."):
+    """
+    Convenience wrapper that runs the full inspection suite and returns a dict.
+    Each sub-inspection is isolated so one failure doesn't break the whole report.
+    """
+    report = {}
+
+    try:
+        report["structure"] = scan_project_structure(path)
+    except Exception as exc:
+        report["structure"] = {"error": str(exc), "traceback": traceback.format_exc()}
+
+    try:
+        report["routing"] = inspect_routing()
+    except Exception as exc:
+        report["routing"] = {"error": str(exc), "traceback": traceback.format_exc()}
+
+    try:
+        report["storage"] = inspect_storage()
+    except Exception as exc:
+        report["storage"] = {"error": str(exc), "traceback": traceback.format_exc()}
+
+    try:
+        report["llm"] = inspect_llm()
+    except Exception as exc:
+        report["llm"] = {"error": str(exc), "traceback": traceback.format_exc()}
+
+    return report
+
+
+# ---------------------------------------------------------
 # STREAMLIT UI
 # ---------------------------------------------------------
 
@@ -161,23 +222,39 @@ def launch_inspector():
     st.divider()
     st.header("📁 Project Structure")
 
-    structure = scan_project_structure(".")
-    st.json(structure)
+    try:
+        structure = scan_project_structure(".")
+        st.json(structure)
+    except Exception as exc:
+        st.error("Failed to scan project structure")
+        st.exception(exc)
 
     st.divider()
     st.header("🧭 Routing Engine Test (Safe Mode)")
 
-    routing_results = inspect_routing()
-    st.json(routing_results)
+    try:
+        routing_results = inspect_routing()
+        st.json(routing_results)
+    except Exception as exc:
+        st.error("Routing inspection failed")
+        st.exception(exc)
 
     st.divider()
     st.header("💾 Storage Inspector")
 
-    storage_results = inspect_storage()
-    st.json(storage_results)
+    try:
+        storage_results = inspect_storage()
+        st.json(storage_results)
+    except Exception as exc:
+        st.error("Storage inspection failed")
+        st.exception(exc)
 
     st.divider()
     st.header("🤖 LLM Connectivity Test")
 
-    llm_results = inspect_llm()
-    st.json(llm_results)
+    try:
+        llm_results = inspect_llm()
+        st.json(llm_results)
+    except Exception as exc:
+        st.error("LLM inspection failed")
+        st.exception(exc)
