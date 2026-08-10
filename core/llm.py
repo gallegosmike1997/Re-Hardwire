@@ -29,6 +29,10 @@ def get_llm_client():
     return {"mode": "LOCAL", "client": ollama}
 
 
+# ---------------------------------------------------------
+# STREAMING LLM RESPONSE (used by app.py chat)
+# ---------------------------------------------------------
+
 def stream_llm_response(messages: list):
     """
     Stream tokens from the configured LLM. Yields text chunks.
@@ -41,7 +45,6 @@ def stream_llm_response(messages: list):
         # OpenAI streaming
         stream = client.chat.completions.create(model="gpt-4o-mini", messages=messages, stream=True)
         for chunk in stream:
-            # defensive access
             content = getattr(chunk.choices[0].delta, "content", None) if hasattr(chunk, "choices") else None
             if content:
                 yield content
@@ -52,3 +55,39 @@ def stream_llm_response(messages: list):
             content = chunk.get("message", {}).get("content")
             if content:
                 yield content
+
+
+# ---------------------------------------------------------
+# NON-STREAMING LLM CALL (required by tools)
+# ---------------------------------------------------------
+
+def run_llm(prompt: str) -> str:
+    """
+    Non-streaming LLM wrapper used by diagnostic, tester, inspector, and console tools.
+    Returns a full text response.
+    """
+    cfg = get_llm_client()
+    mode = cfg["mode"]
+    client = cfg["client"]
+
+    try:
+        if mode == "CLOUD":
+            # OpenAI non-streaming call
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+            )
+            return response.choices[0].message.content
+
+        else:
+            # Ollama non-streaming call
+            response = client.chat(
+                model="llama3",
+                messages=[{"role": "user", "content": prompt}],
+                stream=False,
+            )
+            return response.get("message", {}).get("content", "")
+
+    except Exception as exc:
+        return f"LLM ERROR: {exc}"

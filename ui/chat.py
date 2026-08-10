@@ -1,64 +1,44 @@
 import streamlit as st
-from datetime import datetime
+import time
 
-from core.routing import route_message
-from core.storage import get_history, add_message
-from ui.theme import apply_chat_theme
+# Optional chat theme hook
+try:
+    from ui.theme import apply_chat_theme
+except Exception:
+    def apply_chat_theme():
+        pass
 
 
-def render_chat_ui():
+# ---------------------------------------------------------
+# RENDER CHAT HISTORY
+# ---------------------------------------------------------
+
+def render_chat_history(messages):
     """
-    Main chat interface for Re-Hardwire.
-    Handles:
-    - Displaying chat history
-    - Accepting user input
-    - Routing messages through LLM
-    - Storing messages in session state
+    Render the chat history using Streamlit's chat_message API.
     """
-
     apply_chat_theme()
 
-    st.markdown("<h2 style='text-align:center;'>Re‑Hardwire Assistant</h2>", unsafe_allow_html=True)
+    for msg in messages:
+        role = msg.get("role", "assistant")
+        content = msg.get("content", "")
+        ts = msg.get("ts", None)
 
-    # Load chat history
-    history = get_history()
+        avatar = ":material/person:" if role == "user" else ":material/smart_toy:"
 
-    # Display chat messages ABOVE the input box
-    for msg in history:
-        if msg["role"] == "user":
-            st.markdown(
-                f"""
-                <div style="padding:10px; margin-bottom:8px; background:#1e1e1e; border-radius:8px;">
-                    <strong>You:</strong><br>{msg['content']}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        else:
-            st.markdown(
-                f"""
-                <div style="padding:10px; margin-bottom:8px; background:#2b2b2b; border-radius:8px;">
-                    <strong>Assistant:</strong><br>{msg['content']}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+        with st.chat_message(role, avatar=avatar):
+            st.markdown(content)
 
-    # Chat input box
-    user_input = st.text_input("Message:", key="chat_input")
 
-    # When user sends a message
-    if user_input:
-        timestamp = datetime.utcnow().isoformat()
+# ---------------------------------------------------------
+# RENDER CHAT INPUT
+# ---------------------------------------------------------
 
-        # Store user message
-        add_message("user", user_input, timestamp)
+def render_chat_input():
+    """
+    Render the chat input box and return user text.
+    """
+    apply_chat_theme()
 
-        # Route message through LLM
-        assistant_reply = route_message(user_input)
-
-        # Store assistant reply
-        add_message("assistant", assistant_reply, timestamp)
-
-        # Force rerender so messages appear immediately
-        st.experimental_rerun()
+    user_input = st.chat_input("Type your message…")
+    return user_input
