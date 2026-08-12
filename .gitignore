@@ -6,7 +6,7 @@ __pycache__/
 
 # Virtual environments
 venv/
-venv310/
+venv312/
 .env
 .env.*
 
@@ -17,3 +17,6 @@ venv310/
 
 # Streamlit / local
 *.log
+
+# Project runtime artifacts
+chat_history.json
