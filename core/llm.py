@@ -1,7 +1,8 @@
 import os
+import time
 import streamlit as st
 
-# optional imports; guard to avoid import errors when not installed
+# Optional imports; guarded so your app doesn't crash if SDKs aren't installed
 try:
     import openai
 except Exception:
@@ -13,29 +14,43 @@ except Exception:
     ollama = None
 
 
+# ---------------------------------------------------------
+# LLM CLIENT SELECTION (CLOUD vs LOCAL)
+# ---------------------------------------------------------
+
 @st.cache_resource
 def get_llm_client():
+    """
+    Returns a dict:
+        { "mode": "CLOUD" or "LOCAL", "client": <sdk client> }
+    """
     mode = os.environ.get("AI_TOOL_MODE", "LOCAL").upper()
+
     if mode == "CLOUD":
         if openai is None:
-            raise RuntimeError("OpenAI SDK not installed or not available in this environment.")
+            raise RuntimeError("OpenAI SDK not installed.")
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
-            raise RuntimeError("OPENAI_API_KEY not set")
+            raise RuntimeError("OPENAI_API_KEY not set.")
         return {"mode": "CLOUD", "client": openai.OpenAI(api_key=api_key)}
-    # default to local Ollama if available
+
+    # Default to LOCAL (Ollama)
     if ollama is None:
-        raise RuntimeError("Ollama client not available; set AI_TOOL_MODE=CLOUD and provide OPENAI_API_KEY")
+        raise RuntimeError(
+            "Ollama client not available. "
+            "Install Ollama or set AI_TOOL_MODE=CLOUD."
+        )
     return {"mode": "LOCAL", "client": ollama}
 
 
 # ---------------------------------------------------------
-# STREAMING LLM RESPONSE (used by app.py chat)
+# STREAMING CHAT (used by app.py chat UI)
 # ---------------------------------------------------------
 
 def stream_llm_response(messages: list):
     """
-    Stream tokens from the configured LLM. Yields text chunks.
+    Yields text chunks from the configured LLM.
+    Used by st.write_stream() in app.py.
     """
     cfg = get_llm_client()
     mode = cfg["mode"]
@@ -43,14 +58,25 @@ def stream_llm_response(messages: list):
 
     if mode == "CLOUD":
         # OpenAI streaming
-        stream = client.chat.completions.create(model="gpt-4o-mini", messages=messages, stream=True)
+        stream = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            stream=True,
+        )
         for chunk in stream:
-            content = getattr(chunk.choices[0].delta, "content", None) if hasattr(chunk, "choices") else None
-            if content:
-                yield content
+            if hasattr(chunk, "choices"):
+                delta = chunk.choices[0].delta
+                content = getattr(delta, "content", None)
+                if content:
+                    yield content
+
     else:
         # Ollama streaming
-        stream = client.chat(model="llama3", messages=messages, stream=True)
+        stream = client.chat(
+            model="llama3",
+            messages=messages,
+            stream=True,
+        )
         for chunk in stream:
             content = chunk.get("message", {}).get("content")
             if content:
@@ -61,11 +87,21 @@ def stream_llm_response(messages: list):
 # NON-STREAMING LLM CALL (required by tools)
 # ---------------------------------------------------------
 
-def run_llm(prompt: str) -> str:
+def run_llm(prompt: str, **kwargs) -> str:
     """
-    Non-streaming LLM wrapper used by diagnostic, tester, inspector, and console tools.
-    Returns a full text response.
+    Non-streaming LLM wrapper used by:
+        - diagnostic agent
+        - tester
+        - inspector
+        - developer console
+    Always returns a STRING.
     """
+    # Ensure prompt is always a string
+    if isinstance(prompt, list):
+        prompt = " ".join(str(x) for x in prompt)
+    else:
+        prompt = str(prompt)
+
     cfg = get_llm_client()
     mode = cfg["mode"]
     client = cfg["client"]
@@ -90,4 +126,11 @@ def run_llm(prompt: str) -> str:
             return response.get("message", {}).get("content", "")
 
     except Exception as exc:
-        return f"LLM ERROR: {exc}"
+        # Safe fallback stub — ALWAYS returns a string
+        preview = prompt.replace("\n", " ")[:200]
+        return (
+            f"[LLM ERROR STUB] timestamp={int(time.time())} "
+            f'preview="{preview}" '
+            f"error=\"{exc}\" "
+            "This is a fallback stub response. Replace core/llm.py with a real client implementation to enable live LLM behavior."
+        )
