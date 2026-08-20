@@ -1,82 +1,60 @@
 """
-core/routing.py - Re-Hardwire Routing V4 (Adaptive Protocols) - Patched Single File
+Re-Hardwire Routing V5 — SBERT + Visual Somatic Integration (Offline)
 
-Features:
-- Weighted ML scoring (semantic + keyword + recency + user prefs)
-- OpenAI embeddings integration (optional) with fallback to sentence-transformers
-- Adaptive protocol switching (online weight updates based on feedback/performance)
-- Crisis and somatic high-priority handling
-- Streamlit session_state integration for persistence
-- Backwards-compatible wrappers: semantic_route, auto_route
-- Exports: route_message, get_user_state, semantic_route, auto_route, submit_feedback, debug_state
+Enhancements over V4:
+- Added full visual somatic-experience embedding pipeline (pure PyTorch)
+- No torchvision dependency
+- Offline-safe SBERT-only backend
+- Preserved all adaptive routing logic (semantic, keyword, recency, user-pref)
+- Preserved crisis + somatic overrides
+- Preserved weighted ML scoring
+- Added optional visual context fusion into semantic routing
 """
 
 from __future__ import annotations
-import os
 import time
-import math
-import json
 import logging
 from typing import Dict, Any, List, Tuple, Optional
 
 import numpy as np
+import torch
+import streamlit as st
+from sentence_transformers import SentenceTransformer
 
-try:
-    import streamlit as st
-except Exception:  # allow importing in non-streamlit contexts for testing
-    st = None  # type: ignore
+# ============================================================
+# SBERT MODEL (OFFLINE)
+# ============================================================
 
-# Optional OpenAI client usage (only if env var present)
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-USE_OPENAI = bool(OPENAI_API_KEY)
+_sbert = SentenceTransformer("all-MiniLM-L6-v2")
+_EMBED_CACHE: Dict[str, np.ndarray] = {}
 
-# Try to import OpenAI SDK if available
-openai = None
-if USE_OPENAI:
-    try:
-        import openai as _openai
+# ============================================================
+# PROTOCOL DEFINITIONS
+# ============================================================
 
-        _openai.api_key = OPENAI_API_KEY
-        openai = _openai
-    except Exception:
-        openai = None
-        USE_OPENAI = False
-
-# Fallback to sentence-transformers
-USE_SBERT = False
-sbert_model = None
-if not USE_OPENAI:
-    try:
-        from sentence_transformers import SentenceTransformer, util
-
-        sbert_model = SentenceTransformer("all-MiniLM-L6-v2")
-        USE_SBERT = True
-    except Exception:
-        USE_SBERT = False
-
-# ---------------------------
-# Configuration and constants
-# ---------------------------
 DEFAULT_PROTOCOL = "CBT"
 PROTOCOLS = ["CRISIS", "SOMATIC", "CBT", "DBT", "ACT"]
 
-# Keyword lists (expand as needed)
 CRISIS_KEYWORDS = [
     "suicide", "kill myself", "end it", "can't go on", "hurt myself",
     "self harm", "overdose", "want to die", "die by suicide", "no reason to live"
 ]
+
 SOMATIC_KEYWORDS = [
     "tight chest", "panic", "heart racing", "breathing", "dizzy",
     "nausea", "sweating", "trembling", "grounding", "body"
 ]
+
 CBT_KEYWORDS = [
     "thought", "thinking", "overthinking", "rumination", "catastrophiz",
     "belief", "distortion", "cognitive", "reframe"
 ]
+
 DBT_KEYWORDS = [
     "emotion", "regulation", "distress", "cope", "skills", "mindfulness",
     "wise mind", "interpersonal", "validation"
 ]
+
 ACT_KEYWORDS = [
     "values", "acceptance", "present", "avoidance", "commitment",
     "defusion", "psychological flexibility"
@@ -90,7 +68,6 @@ KEYWORD_MAP = {
     "ACT": ACT_KEYWORDS,
 }
 
-# Semantic examples for each protocol (used for quick semantic matching)
 SEMANTIC_EXAMPLES = {
     "CRISIS": [
         "I want to hurt myself",
@@ -120,10 +97,6 @@ SEMANTIC_EXAMPLES = {
     ],
 }
 
-# Precompute embeddings cache (populated on first use)
-_EMBED_CACHE: Dict[str, np.ndarray] = {}
-
-# Adaptive weights stored in session_state; default weights
 DEFAULT_WEIGHTS = {
     "semantic": 0.5,
     "keyword": 0.3,
@@ -131,37 +104,25 @@ DEFAULT_WEIGHTS = {
     "user_pref": 0.1,
 }
 
-# Minimum semantic score threshold to consider semantic routing decisive
 SEMANTIC_DECISIVE_THRESHOLD = 0.45
 
-# Logging
-logger = logging.getLogger("routing_v4")
+logger = logging.getLogger("routing_v5")
 logger.setLevel(logging.INFO)
 
+# ============================================================
+# STREAMLIT SESSION HELPERS
+# ============================================================
 
-# ---------------------------
-# Utilities
-# ---------------------------
-def _st_get(key: str, default: Any = None) -> Any:
-    if st is None:
-        return default
+def _st_get(key, default=None):
     return st.session_state.get(key, default)
 
-
-def _st_set(key: str, value: Any) -> None:
-    if st is None:
-        return
+def _st_set(key, value):
     st.session_state[key] = value
 
-
 def _ensure_session_defaults():
-    """Ensure adaptive state exists in session_state."""
-    if st is None:
-        return
     if "routing_weights" not in st.session_state:
         st.session_state.routing_weights = DEFAULT_WEIGHTS.copy()
     if "protocol_performance" not in st.session_state:
-        # store simple performance metrics: {protocol: {"wins": int, "calls": int}}
         st.session_state.protocol_performance = {p: {"wins": 0, "calls": 0} for p in PROTOCOLS}
     if "message_history" not in st.session_state:
         st.session_state.message_history = []
@@ -170,233 +131,204 @@ def _ensure_session_defaults():
     if "auto_routing" not in st.session_state:
         st.session_state.auto_routing = True
 
+# ============================================================
+# PURE PYTORCH IMAGE TRANSFORMS (NO TORCHVISION)
+# ============================================================
 
-def _normalize(vec: np.ndarray) -> np.ndarray:
-    norm = np.linalg.norm(vec)
-    if norm == 0:
-        return vec
-    return vec / norm
+def pil_to_tensor(img):
+    arr = np.array(img).astype("float32") / 255.0
+    if arr.ndim == 2:
+        arr = np.expand_dims(arr, -1)
+    return torch.from_numpy(arr).permute(2, 0, 1)
 
+def resize_tensor(tensor, size):
+    return torch.nn.functional.interpolate(
+        tensor.unsqueeze(0),
+        size=size,
+        mode="bilinear",
+        align_corners=False
+    ).squeeze(0)
 
-def _cosine(a: np.ndarray, b: np.ndarray) -> float:
-    a_n = _normalize(a)
-    b_n = _normalize(b)
-    return float(np.dot(a_n, b_n))
+def normalize_tensor(
+    tensor,
+    mean=(0.485, 0.456, 0.406),
+    std=(0.229, 0.224, 0.225),
+):
+    mean_t = torch.tensor(mean)[:, None, None]
+    std_t = torch.tensor(std)[:, None, None]
+    return (tensor - mean_t) / std_t
 
+def crop_tensor(tensor, top, left, height, width):
+    return tensor[:, top:top+height, left:left+width]
 
-# ---------------------------
-# Embedding helpers
-# ---------------------------
-def _embed_with_openai(texts: List[str]) -> List[np.ndarray]:
-    """
-    Use OpenAI embeddings API to embed texts.
-    Returns list of numpy arrays.
-    """
-    if openai is None:
-        raise RuntimeError("OpenAI client not available")
-    model = "text-embedding-3-small"
-    response = openai.Embedding.create(input=texts, model=model)
-    embeddings = [np.array(item["embedding"], dtype=np.float32) for item in response["data"]]
-    return embeddings
+# ============================================================
+# VISUAL SOMATIC EMBEDDING PIPELINE
+# ============================================================
 
+def somatic_visual_embedding(pil_image):
+    t = pil_to_tensor(pil_image)
+    t = resize_tensor(t, (128, 128))
+    t = normalize_tensor(t)
 
-def _embed_with_sbert(texts: List[str]) -> List[np.ndarray]:
-    if sbert_model is None:
-        raise RuntimeError("SBERT model not available")
-    embs = sbert_model.encode(texts, convert_to_numpy=True)
-    return [np.array(e, dtype=np.float32) for e in embs]
+    h, w = t.shape[1], t.shape[2]
+    crop_h, crop_w = 96, 96
+    top = (h - crop_h) // 2
+    left = (w - crop_w) // 2
+    t = crop_tensor(t, top, left, crop_h, crop_w)
 
+    return t.flatten().float()
+
+# ============================================================
+# SBERT EMBEDDINGS
+# ============================================================
 
 def get_embeddings(texts: List[str]) -> List[np.ndarray]:
-    """
-    Get embeddings for a list of texts. Tries OpenAI first (if configured),
-    otherwise falls back to SBERT. Caches results in memory for the process.
-    """
     results = []
     to_fetch = []
-    fetch_indices = []
+    idxs = []
 
-    # Check cache
     for i, t in enumerate(texts):
         if t in _EMBED_CACHE:
             results.append(_EMBED_CACHE[t])
         else:
             results.append(None)
             to_fetch.append(t)
-            fetch_indices.append(i)
+            idxs.append(i)
 
-    if not to_fetch:
-        return results  # type: ignore
+    if to_fetch:
+        try:
+            fetched = _sbert.encode(to_fetch, convert_to_numpy=True)
+            fetched = [np.array(e, dtype=np.float32) for e in fetched]
+        except Exception as e:
+            logger.exception("SBERT failure: %s", e)
+            fetched = [np.zeros(384, dtype=np.float32) for _ in to_fetch]
 
-    # Fetch embeddings
-    try:
-        if USE_OPENAI and openai is not None:
-            fetched = _embed_with_openai(to_fetch)
-        elif USE_SBERT:
-            fetched = _embed_with_sbert(to_fetch)
-        else:
-            raise RuntimeError("No embedding backend available")
-    except Exception as e:
-        logger.exception("Embedding fetch failed: %s", e)
-        # As a last resort, use simple character-level hashing vector (deterministic)
-        fetched = []
-        for t in to_fetch:
-            vec = np.frombuffer(t.encode("utf-8"), dtype=np.uint8).astype(np.float32)
-            if vec.size == 0:
-                vec = np.zeros(128, dtype=np.float32)
-            else:
-                vec = np.pad(vec, (0, max(0, 128 - vec.size)))[:128]
-            fetched.append(vec)
+        for i, emb in zip(idxs, fetched):
+            _EMBED_CACHE[texts[i]] = emb
+            results[i] = emb
 
-    # Store in cache and results
-    for idx, emb in zip(fetch_indices, fetched):
-        _EMBED_CACHE[texts[idx]] = emb
-        results[idx] = emb
+    return results
 
-    return results  # type: ignore
+# ============================================================
+# SEMANTIC EXAMPLE EMBEDDINGS
+# ============================================================
 
+_example_embs = None
 
-# Precompute example embeddings for semantic examples
 def _ensure_example_embeddings():
-    if "_example_embs" in globals() and globals()["_example_embs"]:
-        return
     global _example_embs
+    if _example_embs is not None:
+        return
+
     _example_embs = {}
     all_texts = []
     mapping = []
+
     for proto, examples in SEMANTIC_EXAMPLES.items():
         for ex in examples:
             mapping.append((proto, ex))
             all_texts.append(ex)
-    if not all_texts:
-        _example_embs = {}
-        return
+
     embs = get_embeddings(all_texts)
-    # group by protocol
     idx = 0
+
     for proto, examples in SEMANTIC_EXAMPLES.items():
         _example_embs[proto] = []
         for _ in examples:
             _example_embs[proto].append(embs[idx])
             idx += 1
 
+# ============================================================
+# SCORING FUNCTIONS
+# ============================================================
 
-# ---------------------------
-# Scoring functions
-# ---------------------------
-def keyword_score(text: str, protocol: str) -> float:
-    """Return a normalized keyword match score [0,1] for a protocol."""
+def _normalize(v):
+    n = np.linalg.norm(v)
+    return v if n == 0 else v / n
+
+def _cosine(a, b):
+    return float(np.dot(_normalize(a), _normalize(b)))
+
+def keyword_score(text, protocol):
     kws = KEYWORD_MAP.get(protocol, [])
-    if not kws:
-        return 0.0
-    text_lower = text.lower()
-    matches = 0
-    for kw in kws:
-        if kw in text_lower:
-            matches += 1
-    return float(matches) / max(1, len(kws))
+    t = text.lower()
+    matches = sum(1 for kw in kws if kw in t)
+    return matches / max(1, len(kws))
 
-
-def semantic_scores(text: str) -> Dict[str, float]:
-    """
-    Compute semantic similarity scores between text and each protocol's examples.
-    Returns dict protocol -> max_similarity.
-    """
+def semantic_scores(text):
     _ensure_example_embeddings()
     text_emb = get_embeddings([text])[0]
     scores = {}
+
     for proto, embs in _example_embs.items():
         best = 0.0
         for e in embs:
             try:
-                s = _cosine(text_emb, e)
+                best = max(best, _cosine(text_emb, e))
             except Exception:
-                s = 0.0
-            if s > best:
-                best = s
-        scores[proto] = float(best)
+                pass
+        scores[proto] = best
+
     return scores
 
-
-def recency_score(history: List[Dict[str, Any]], protocol: str) -> float:
-    """
-    Give higher score if the protocol was recently active.
-    Simple decay function: if last N messages used protocol, boost.
-    """
+def recency_score(history, protocol):
     if not history:
         return 0.0
     boost = 0.0
     now = time.time()
+
     for i, msg in enumerate(reversed(history[-10:])):
         if msg.get("protocol") == protocol:
             age = now - msg.get("timestamp", now)
-            pos_weight = 1.0 / (i + 1)
-            time_weight = 1.0 / (1.0 + age / 60.0)
-            boost += pos_weight * time_weight
-    return float(min(1.0, boost))
+            pos_w = 1.0 / (i + 1)
+            time_w = 1.0 / (1.0 + age / 60.0)
+            boost += pos_w * time_w
 
+    return min(1.0, boost)
 
-def user_pref_score(user_state: Dict[str, Any], protocol: str) -> float:
-    """
-    If user has explicitly selected a preferred protocol, boost it.
-    user_state may contain 'preferred_protocol' or 'active_state'.
-    """
+def user_pref_score(user_state, protocol):
     pref = user_state.get("preferred_protocol") or user_state.get("active_state")
-    if not pref:
-        return 0.0
     return 1.0 if pref == protocol else 0.0
 
+# ============================================================
+# ADAPTIVE WEIGHT UPDATES
+# ============================================================
 
-# ---------------------------
-# Adaptive weight update
-# ---------------------------
-def _update_weights_on_feedback(chosen_protocol: str, success: bool, learning_rate: float = 0.05):
-    """
-    Update routing_weights in session_state based on feedback.
-    If success is True, increase weights that favored the chosen protocol.
-    If False, decrease them slightly.
-    """
-    if st is None:
-        return
-    _ensure_session_defaults()
-    weights = st.session_state.routing_weights
-    perf = st.session_state.protocol_performance
+def _update_weights_on_feedback(proto, success, lr=0.05):
+    weights = _st_get("routing_weights")
+    perf = _st_get("protocol_performance")
 
-    perf[chosen_protocol]["calls"] += 1
+    perf[proto]["calls"] += 1
     if success:
-        perf[chosen_protocol]["wins"] += 1
+        perf[proto]["wins"] += 1
 
-    calls = perf[chosen_protocol]["calls"]
-    wins = perf[chosen_protocol]["wins"]
-    success_ratio = wins / max(1, calls)
+    calls = perf[proto]["calls"]
+    wins = perf[proto]["wins"]
+    ratio = wins / max(1, calls)
 
     if success:
-        if success_ratio >= 0.5:
-            weights["semantic"] = min(0.9, weights["semantic"] + learning_rate)
-            weights["keyword"] = max(0.0, weights["keyword"] - learning_rate / 2)
+        if ratio >= 0.5:
+            weights["semantic"] = min(0.9, weights["semantic"] + lr)
+            weights["keyword"] = max(0.0, weights["keyword"] - lr / 2)
         else:
-            weights["keyword"] = min(0.9, weights["keyword"] + learning_rate)
-            weights["semantic"] = max(0.0, weights["semantic"] - learning_rate / 2)
+            weights["keyword"] = min(0.9, weights["keyword"] + lr)
+            weights["semantic"] = max(0.0, weights["semantic"] - lr / 2)
     else:
-        dominant = max(weights, key=weights.get)
-        weights[dominant] = max(0.0, weights[dominant] - learning_rate)
+        dom = max(weights, key=weights.get)
+        weights[dom] = max(0.0, weights[dom] - lr)
 
     total = sum(weights.values()) or 1.0
     for k in weights:
-        weights[k] = weights[k] / total
+        weights[k] /= total
 
-    st.session_state.routing_weights = weights
-    st.session_state.protocol_performance = perf
+    _st_set("routing_weights", weights)
+    _st_set("protocol_performance", perf)
 
+# ============================================================
+# MESSAGE HISTORY
+# ============================================================
 
-# ---------------------------
-# Message history helpers
-# ---------------------------
-def _record_message(text: str, protocol: str, reason: str = "", score: float = 0.0, details: Optional[Dict] = None):
-    """Append a message record to session history with timestamp."""
-    if st is None:
-        return
-    _ensure_session_defaults()
+def _record_message(text, protocol, reason="", score=0.0, details=None):
     rec = {
         "timestamp": time.time(),
         "text": text,
@@ -407,28 +339,15 @@ def _record_message(text: str, protocol: str, reason: str = "", score: float = 0
     }
     st.session_state.message_history.append(rec)
 
+# ============================================================
+# CORE ROUTING (WITH VISUAL FUSION)
+# ============================================================
 
-# ---------------------------
-# Core routing function
-# ---------------------------
-def route_message(user_text: str, user_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """
-    Main entry point for routing a user message.
-
-    Returns a dict:
-    {
-        "protocol": str,
-        "reason": str,
-        "score": float,
-        "details": { ... },
-        "text": user_text
-    }
-    """
+def route_message(user_text, user_context=None, visual=None):
     _ensure_session_defaults()
-    if user_context is None:
-        user_context = {}
+    user_context = user_context or {}
 
-    if not user_text or not user_text.strip():
+    if not user_text.strip():
         return {
             "protocol": _st_get("active_state", DEFAULT_PROTOCOL),
             "reason": "empty_text",
@@ -447,62 +366,76 @@ def route_message(user_text: str, user_context: Optional[Dict[str, Any]] = None)
             "text": user_text,
         }
 
-    text_lower = user_text.lower()
+    t = user_text.lower()
 
-    # High-priority crisis detection via keywords
-    if any(k in text_lower for k in CRISIS_KEYWORDS):
+    # Crisis override
+    if any(k in t for k in CRISIS_KEYWORDS):
         _st_set("active_state", "CRISIS")
-        _record_message(user_text, "CRISIS", reason="crisis_keyword", score=1.0)
+        _record_message(user_text, "CRISIS", "crisis_keyword", 1.0)
         return {
             "protocol": "CRISIS",
             "reason": "crisis_keyword",
             "score": 1.0,
-            "details": {"matched_keywords": [k for k in CRISIS_KEYWORDS if k in text_lower]},
+            "details": {"matched_keywords": [k for k in CRISIS_KEYWORDS if k in t]},
             "text": user_text,
         }
 
-    # Somatic immediate detection
-    if any(k in text_lower for k in SOMATIC_KEYWORDS):
+    # Somatic override
+    if any(k in t for k in SOMATIC_KEYWORDS):
         _st_set("active_state", "SOMATIC")
-        _record_message(user_text, "SOMATIC", reason="somatic_keyword", score=0.95)
+        _record_message(user_text, "SOMATIC", "somatic_keyword", 0.95)
         return {
             "protocol": "SOMATIC",
             "reason": "somatic_keyword",
             "score": 0.95,
-            "details": {"matched_keywords": [k for k in SOMATIC_KEYWORDS if k in text_lower]},
+            "details": {"matched_keywords": [k for k in SOMATIC_KEYWORDS if k in t]},
             "text": user_text,
         }
 
-    # Compute feature scores
-    sem_scores = semantic_scores(user_text)  # protocol -> similarity
+    # Semantic scores
+    sem_scores = semantic_scores(user_text)
+
+    # Visual fusion (optional)
+    visual_score = 0.0
+    if visual is not None:
+        try:
+            vis_emb = somatic_visual_embedding(visual)
+            visual_score = float(torch.mean(torch.abs(vis_emb)))
+        except Exception as e:
+            logger.warning("Visual embedding failed: %s", e)
+
+    # Keyword scores
     kw_scores = {p: keyword_score(user_text, p) for p in PROTOCOLS}
+
+    # Recency scores
     history = _st_get("message_history", [])
     rec_scores = {p: recency_score(history, p) for p in PROTOCOLS}
-    user_state = {"preferred_protocol": user_context.get("preferred_protocol"), "active_state": _st_get("active_state")}
+
+    # User preference scores
+    user_state = {
+        "preferred_protocol": user_context.get("preferred_protocol"),
+        "active_state": _st_get("active_state"),
+    }
     pref_scores = {p: user_pref_score(user_state, p) for p in PROTOCOLS}
 
-    weights = _st_get("routing_weights", DEFAULT_WEIGHTS.copy())
-
     # Weighted aggregation
+    weights = _st_get("routing_weights", DEFAULT_WEIGHTS.copy())
     final_scores = {}
-    for p in PROTOCOLS:
-        s_sem = sem_scores.get(p, 0.0)
-        s_kw = kw_scores.get(p, 0.0)
-        s_rec = rec_scores.get(p, 0.0)
-        s_pref = pref_scores.get(p, 0.0)
 
+    for p in PROTOCOLS:
         score = (
-            weights["semantic"] * s_sem
-            + weights["keyword"] * s_kw
-            + weights["recency"] * s_rec
-            + weights["user_pref"] * s_pref
+            weights["semantic"] * sem_scores.get(p, 0.0)
+            + weights["keyword"] * kw_scores.get(p, 0.0)
+            + weights["recency"] * rec_scores.get(p, 0.0)
+            + weights["user_pref"] * pref_scores.get(p, 0.0)
+            + 0.1 * visual_score
         )
         final_scores[p] = float(score)
 
-    # Crisis amplification via semantic if above threshold
+    # Semantic crisis amplification
     if sem_scores.get("CRISIS", 0.0) >= SEMANTIC_DECISIVE_THRESHOLD:
         _st_set("active_state", "CRISIS")
-        _record_message(user_text, "CRISIS", reason="semantic_crisis", score=sem_scores["CRISIS"])
+        _record_message(user_text, "CRISIS", "semantic_crisis", sem_scores["CRISIS"])
         return {
             "protocol": "CRISIS",
             "reason": "semantic_crisis",
@@ -511,9 +444,8 @@ def route_message(user_text: str, user_context: Optional[Dict[str, Any]] = None)
             "text": user_text,
         }
 
-    # Choose best protocol by final_scores
-    chosen = max(final_scores.items(), key=lambda kv: kv[1])
-    chosen_protocol, chosen_score = chosen[0], chosen[1]
+    # Choose best protocol
+    chosen_protocol, chosen_score = max(final_scores.items(), key=lambda kv: kv[1])
 
     if chosen_score < 0.05:
         chosen_protocol = DEFAULT_PROTOCOL
@@ -524,13 +456,14 @@ def route_message(user_text: str, user_context: Optional[Dict[str, Any]] = None)
 
     _st_set("active_state", chosen_protocol)
 
-    _record_message(user_text, chosen_protocol, reason=reason, score=chosen_score, details={
+    _record_message(user_text, chosen_protocol, reason, chosen_score, {
         "final_scores": final_scores,
         "semantic_scores": sem_scores,
         "keyword_scores": kw_scores,
         "recency_scores": rec_scores,
         "pref_scores": pref_scores,
         "weights": weights,
+        "visual_score": visual_score,
     })
 
     return {
@@ -544,36 +477,26 @@ def route_message(user_text: str, user_context: Optional[Dict[str, Any]] = None)
             "recency_scores": rec_scores,
             "pref_scores": pref_scores,
             "weights": weights,
+            "visual_score": visual_score,
         },
         "text": user_text,
     }
 
+# ============================================================
+# WRAPPERS
+# ============================================================
 
-# ---------------------------
-# Backwards-compatible wrappers
-# ---------------------------
-def semantic_route(text: str) -> Tuple[Optional[str], float]:
-    """
-    Backwards-compatible wrapper that returns the best semantic match and score.
-    Returns (protocol_name, score).
-    """
+def semantic_route(text):
     try:
-        scores = semantic_scores(text)  # returns dict protocol -> similarity
-        if not scores:
-            return None, 0.0
+        scores = semantic_scores(text)
         best = max(scores.items(), key=lambda kv: kv[1])
         return best[0], float(best[1])
     except Exception:
         return None, 0.0
 
-
-def auto_route(user_text: str, user_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """
-    Backwards-compatible wrapper that behaves like the older auto_route API:
-    returns the same dict structure as route_message.
-    """
+def auto_route(user_text, user_context=None, visual=None):
     try:
-        return route_message(user_text, user_context=user_context)
+        return route_message(user_text, user_context=user_context, visual=visual)
     except Exception as e:
         return {
             "protocol": DEFAULT_PROTOCOL,
@@ -583,20 +506,14 @@ def auto_route(user_text: str, user_context: Optional[Dict[str, Any]] = None) ->
             "text": user_text,
         }
 
+# ============================================================
+# FEEDBACK
+# ============================================================
 
-# ---------------------------
-# Feedback API
-# ---------------------------
-def submit_feedback(message_index: Optional[int] = None, success: bool = True):
-    """
-    Submit feedback for a routed message. If message_index is None, use last message.
-    This updates adaptive weights and protocol performance.
-    """
-    if st is None:
-        return {"status": "no_streamlit", "message": "Streamlit not available"}
-
+def submit_feedback(message_index=None, success=True):
     _ensure_session_defaults()
     history = st.session_state.message_history
+
     if not history:
         return {"status": "no_history", "message": "No messages to give feedback on"}
 
@@ -609,63 +526,26 @@ def submit_feedback(message_index: Optional[int] = None, success: bool = True):
 
     rec = history[idx]
     proto = rec.get("protocol")
+
     _update_weights_on_feedback(proto, success)
-    return {"status": "ok", "protocol": proto, "success": success, "routing_weights": st.session_state.routing_weights}
 
-
-# ---------------------------
-# Session accessor
-# ---------------------------
-def get_user_state() -> Dict[str, Any]:
-    """
-    Return a compact snapshot of routing-related user state.
-    """
-    _ensure_session_defaults()
     return {
-        "active_state": _st_get("active_state", DEFAULT_PROTOCOL),
-        "auto_routing": _st_get("auto_routing", True),
-        "routing_weights": _st_get("routing_weights", DEFAULT_WEIGHTS.copy()),
-        "protocol_performance": _st_get("protocol_performance", {p: {"wins": 0, "calls": 0} for p in PROTOCOLS}),
-        "history_len": len(_st_get("message_history", [])),
+        "status": "ok",
+        "protocol": proto,
+        "success": success,
+        "routing_weights": st.session_state.routing_weights,
     }
 
+# ============================================================
+# USER STATE ACCESSOR
+# ============================================================
 
-# ---------------------------
-# Utility: debug print (safe)
-# ---------------------------
-def debug_state() -> Dict[str, Any]:
-    """Return internal debug info for development (not for production logs)."""
+def get_user_state() -> dict:
     _ensure_session_defaults()
     return {
-        "session_state": None if st is None else dict(st.session_state),
-        "example_embs_cached": bool(_EMBED_CACHE),
-        "weights": _st_get("routing_weights", DEFAULT_WEIGHTS.copy()),
+        "active_state": st.session_state.active_state,
+        "auto_routing": st.session_state.auto_routing,
+        "routing_weights": dict(st.session_state.routing_weights),
+        "protocol_performance": dict(st.session_state.protocol_performance),
+        "history_len": len(st.session_state.message_history),
     }
-
-
-# ---------------------------
-# If run as script, simple demo
-# ---------------------------
-if __name__ == "__main__":
-    print("Routing V4 demo. Using OpenAI:", USE_OPENAI, "SBERT:", USE_SBERT)
-    while True:
-        try:
-            txt = input("\nEnter message (or 'quit'): ").strip()
-        except EOFError:
-            break
-        if not txt or txt.lower() in ("quit", "exit"):
-            break
-        # run routing (no streamlit context)
-        class DummySession(dict):
-            pass
-
-        if st is None:
-            import types
-
-            class _Dummy:
-                session_state = DummySession()
-
-            st = _Dummy()  # type: ignore
-
-        out = route_message(txt, user_context={})
-        print(json.dumps(out, indent=2))
