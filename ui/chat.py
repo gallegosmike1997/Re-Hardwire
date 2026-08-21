@@ -12,8 +12,7 @@ except Exception:
 from core.routing import auto_route
 from audio.tts import TTSEngine
 
-tts = TTSEngine()
-wav_path = tts.synthesize("Hello Michael, your routing engine is now stable.")
+tts_engine = TTSEngine()
 
 
 # ---------------------------------------------------------
@@ -53,15 +52,16 @@ def render_chat_history():
             # TTS button for assistant messages
             if role == "assistant":
                 if st.button("🔊 Speak Response", key=f"tts_{ts}_{role}"):
-                    wav_path = tts_engine.speak(content)
+                    wav_path = tts_engine.synthesize(content)
                     st.audio(wav_path)
 
-            # Optional: show protocol metadata for assistant messages
+            # Protocol metadata
             if role == "assistant":
                 details = msg.get("routing_details", {})
                 proto = details.get("protocol")
                 reason = details.get("reason")
                 score = details.get("score")
+
                 if proto:
                     st.caption(
                         f"Protocol: **{proto}** · Reason: `{reason}` · Score: `{score:.3f}`"
@@ -80,6 +80,7 @@ def render_chat_input():
     apply_chat_theme()
     _ensure_chat_session()
 
+    # Guaranteed stable input bar
     user_input = st.chat_input("Type your message…")
     if not user_input:
         return None
@@ -99,7 +100,7 @@ def render_chat_input():
     reason = routing_result.get("reason")
     score = routing_result.get("score", 0.0)
 
-    # Simple assistant reply stub (you can replace with LLM call)
+    # Assistant reply (stub — replaced by LLM in app.py)
     assistant_reply = (
         f"Routing you to **{protocol}** protocol.\n\n"
         f"_Reason_: `{reason}` · _Score_: `{score:.3f}`\n\n"
