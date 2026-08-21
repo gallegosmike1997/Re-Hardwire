@@ -1,20 +1,11 @@
 """
-Re-Hardwire Routing V5 — SBERT + Visual Somatic Integration (Offline)
-
-Enhancements over V4:
-- Added full visual somatic-experience embedding pipeline (pure PyTorch)
-- No torchvision dependency
-- Offline-safe SBERT-only backend
-- Preserved all adaptive routing logic (semantic, keyword, recency, user-pref)
-- Preserved crisis + somatic overrides
-- Preserved weighted ML scoring
-- Added optional visual context fusion into semantic routing
+Re-Hardwire Routing V5 — SBERT + Visual Somatic Integration (Optimized)
 """
 
 from __future__ import annotations
 import time
 import logging
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List
 
 import numpy as np
 import torch
@@ -22,11 +13,14 @@ import streamlit as st
 from sentence_transformers import SentenceTransformer
 
 # ============================================================
-# SBERT MODEL (OFFLINE)
+# SBERT MODEL + CACHE
 # ============================================================
 
 _sbert = SentenceTransformer("all-MiniLM-L6-v2")
 _EMBED_CACHE: Dict[str, np.ndarray] = {}
+
+logger = logging.getLogger("routing_v5")
+logger.setLevel(logging.INFO)
 
 # ============================================================
 # PROTOCOL DEFINITIONS
@@ -106,39 +100,26 @@ DEFAULT_WEIGHTS = {
 
 SEMANTIC_DECISIVE_THRESHOLD = 0.45
 
-logger = logging.getLogger("routing_v5")
-logger.setLevel(logging.INFO)
-
 # ============================================================
 # STREAMLIT SESSION HELPERS
 # ============================================================
 
-def _st_get(key, default=None):
-    return st.session_state.get(key, default)
-
-def _st_set(key, value):
-    st.session_state[key] = value
-
 def _ensure_session_defaults():
-    if "routing_weights" not in st.session_state:
-        st.session_state.routing_weights = DEFAULT_WEIGHTS.copy()
-    if "protocol_performance" not in st.session_state:
-        st.session_state.protocol_performance = {p: {"wins": 0, "calls": 0} for p in PROTOCOLS}
-    if "message_history" not in st.session_state:
-        st.session_state.message_history = []
-    if "active_state" not in st.session_state:
-        st.session_state.active_state = DEFAULT_PROTOCOL
-    if "auto_routing" not in st.session_state:
-        st.session_state.auto_routing = True
+    ss = st.session_state
+    ss.setdefault("routing_weights", DEFAULT_WEIGHTS.copy())
+    ss.setdefault("protocol_performance", {p: {"wins": 0, "calls": 0} for p in PROTOCOLS})
+    ss.setdefault("message_history", [])
+    ss.setdefault("active_state", DEFAULT_PROTOCOL)
+    ss.setdefault("auto_routing", True)
 
 # ============================================================
-# PURE PYTORCH IMAGE TRANSFORMS (NO TORCHVISION)
+# PURE PYTORCH IMAGE TRANSFORMS
 # ============================================================
 
 def pil_to_tensor(img):
     arr = np.array(img).astype("float32") / 255.0
     if arr.ndim == 2:
-        arr = np.expand_dims(arr, -1)
+        arr = arr[..., None]
     return torch.from_numpy(arr).permute(2, 0, 1)
 
 def resize_tensor(tensor, size):
@@ -149,20 +130,16 @@ def resize_tensor(tensor, size):
         align_corners=False
     ).squeeze(0)
 
-def normalize_tensor(
-    tensor,
-    mean=(0.485, 0.456, 0.406),
-    std=(0.229, 0.224, 0.225),
-):
-    mean_t = torch.tensor(mean)[:, None, None]
-    std_t = torch.tensor(std)[:, None, None]
-    return (tensor - mean_t) / std_t
+def normalize_tensor(tensor):
+    mean = torch.tensor([0.485, 0.456, 0.406])[:, None, None]
+    std = torch.tensor([0.229, 0.224, 0.225])[:, None, None]
+    return (tensor - mean) / std
 
 def crop_tensor(tensor, top, left, height, width):
     return tensor[:, top:top+height, left:left+width]
 
 # ============================================================
-# VISUAL SOMATIC EMBEDDING PIPELINE
+# VISUAL SOMATIC EMBEDDING
 # ============================================================
 
 def somatic_visual_embedding(pil_image):
@@ -174,17 +151,17 @@ def somatic_visual_embedding(pil_image):
     crop_h, crop_w = 96, 96
     top = (h - crop_h) // 2
     left = (w - crop_w) // 2
-    t = crop_tensor(t, top, left, crop_h, crop_w)
 
+    t = crop_tensor(t, top, left, crop_h, crop_w)
     return t.flatten().float()
 
 # ============================================================
-# SBERT EMBEDDINGS
+# SBERT EMBEDDINGS (Optimized)
 # ============================================================
 
 def get_embeddings(texts: List[str]) -> List[np.ndarray]:
     results = []
-    to_fetch = []
+    to_compute = []
     idxs = []
 
     for i, t in enumerate(texts):
@@ -192,25 +169,25 @@ def get_embeddings(texts: List[str]) -> List[np.ndarray]:
             results.append(_EMBED_CACHE[t])
         else:
             results.append(None)
-            to_fetch.append(t)
+            to_compute.append(t)
             idxs.append(i)
 
-    if to_fetch:
+    if to_compute:
         try:
-            fetched = _sbert.encode(to_fetch, convert_to_numpy=True)
-            fetched = [np.array(e, dtype=np.float32) for e in fetched]
+            fetched = _sbert.encode(to_compute, convert_to_numpy=True)
         except Exception as e:
-            logger.exception("SBERT failure: %s", e)
-            fetched = [np.zeros(384, dtype=np.float32) for _ in to_fetch]
+            logger.error("SBERT failure: %s", e)
+            fetched = [np.zeros(384, dtype=np.float32) for _ in to_compute]
 
         for i, emb in zip(idxs, fetched):
+            emb = np.array(emb, dtype=np.float32)
             _EMBED_CACHE[texts[i]] = emb
             results[i] = emb
 
     return results
 
 # ============================================================
-# SEMANTIC EXAMPLE EMBEDDINGS
+# SEMANTIC EXAMPLE EMBEDDINGS (Cached)
 # ============================================================
 
 _example_embs = None
@@ -222,72 +199,57 @@ def _ensure_example_embeddings():
 
     _example_embs = {}
     all_texts = []
-    mapping = []
 
     for proto, examples in SEMANTIC_EXAMPLES.items():
-        for ex in examples:
-            mapping.append((proto, ex))
-            all_texts.append(ex)
+        all_texts.extend(examples)
 
     embs = get_embeddings(all_texts)
-    idx = 0
 
+    idx = 0
     for proto, examples in SEMANTIC_EXAMPLES.items():
         _example_embs[proto] = []
-        for _ in examples:
+        for ex in examples:
+            _EMBED_CACHE.setdefault(ex, embs[idx])
             _example_embs[proto].append(embs[idx])
             idx += 1
 
 # ============================================================
-# SCORING FUNCTIONS
+# SCORING FUNCTIONS (Optimized)
 # ============================================================
 
-def _normalize(v):
-    n = np.linalg.norm(v)
-    return v if n == 0 else v / n
-
 def _cosine(a, b):
-    return float(np.dot(_normalize(a), _normalize(b)))
+    na = a / (np.linalg.norm(a) + 1e-8)
+    nb = b / (np.linalg.norm(b) + 1e-8)
+    return float(np.dot(na, nb))
 
 def keyword_score(text, protocol):
-    kws = KEYWORD_MAP.get(protocol, [])
     t = text.lower()
-    matches = sum(1 for kw in kws if kw in t)
-    return matches / max(1, len(kws))
+    kws = KEYWORD_MAP[protocol]
+    return sum(kw in t for kw in kws) / len(kws)
 
 def semantic_scores(text):
     _ensure_example_embeddings()
     text_emb = get_embeddings([text])[0]
-    scores = {}
-
-    for proto, embs in _example_embs.items():
-        best = 0.0
-        for e in embs:
-            try:
-                best = max(best, _cosine(text_emb, e))
-            except Exception:
-                pass
-        scores[proto] = best
-
-    return scores
+    return {
+        proto: max(_cosine(text_emb, e) for e in embs)
+        for proto, embs in _example_embs.items()
+    }
 
 def recency_score(history, protocol):
     if not history:
         return 0.0
-    boost = 0.0
     now = time.time()
+    boost = 0.0
 
     for i, msg in enumerate(reversed(history[-10:])):
-        if msg.get("protocol") == protocol:
-            age = now - msg.get("timestamp", now)
-            pos_w = 1.0 / (i + 1)
-            time_w = 1.0 / (1.0 + age / 60.0)
-            boost += pos_w * time_w
+        if msg["protocol"] == protocol:
+            age = now - msg["timestamp"]
+            boost += (1 / (i + 1)) * (1 / (1 + age / 60))
 
-    return min(1.0, boost)
+    return min(boost, 1.0)
 
 def user_pref_score(user_state, protocol):
-    pref = user_state.get("preferred_protocol") or user_state.get("active_state")
+    pref = user_state.get("preferred_protocol") or user_state["active_state"]
     return 1.0 if pref == protocol else 0.0
 
 # ============================================================
@@ -295,16 +257,14 @@ def user_pref_score(user_state, protocol):
 # ============================================================
 
 def _update_weights_on_feedback(proto, success, lr=0.05):
-    weights = _st_get("routing_weights")
-    perf = _st_get("protocol_performance")
+    weights = st.session_state.routing_weights
+    perf = st.session_state.protocol_performance
 
     perf[proto]["calls"] += 1
     if success:
         perf[proto]["wins"] += 1
 
-    calls = perf[proto]["calls"]
-    wins = perf[proto]["wins"]
-    ratio = wins / max(1, calls)
+    ratio = perf[proto]["wins"] / max(1, perf[proto]["calls"])
 
     if success:
         if ratio >= 0.5:
@@ -317,49 +277,43 @@ def _update_weights_on_feedback(proto, success, lr=0.05):
         dom = max(weights, key=weights.get)
         weights[dom] = max(0.0, weights[dom] - lr)
 
-    total = sum(weights.values()) or 1.0
+    total = sum(weights.values())
     for k in weights:
         weights[k] /= total
-
-    _st_set("routing_weights", weights)
-    _st_set("protocol_performance", perf)
 
 # ============================================================
 # MESSAGE HISTORY
 # ============================================================
 
-def _record_message(text, protocol, reason="", score=0.0, details=None):
-    rec = {
+def _record_message(text, protocol, reason, score, details):
+    st.session_state.message_history.append({
         "timestamp": time.time(),
         "text": text,
         "protocol": protocol,
         "reason": reason,
         "score": float(score),
-        "details": details or {},
-    }
-    st.session_state.message_history.append(rec)
+        "details": details,
+    })
 
 # ============================================================
-# CORE ROUTING (WITH VISUAL FUSION)
+# CORE ROUTING (Optimized)
 # ============================================================
 
 def route_message(user_text, user_context=None, visual=None):
     _ensure_session_defaults()
-    user_context = user_context or {}
 
     if not user_text.strip():
         return {
-            "protocol": _st_get("active_state", DEFAULT_PROTOCOL),
+            "protocol": st.session_state.active_state,
             "reason": "empty_text",
             "score": 0.0,
             "details": {},
             "text": user_text,
         }
 
-    if not _st_get("auto_routing", True):
-        proto = _st_get("active_state", DEFAULT_PROTOCOL)
+    if not st.session_state.auto_routing:
         return {
-            "protocol": proto,
+            "protocol": st.session_state.active_state,
             "reason": "manual_override",
             "score": 1.0,
             "details": {"manual": True},
@@ -370,32 +324,30 @@ def route_message(user_text, user_context=None, visual=None):
 
     # Crisis override
     if any(k in t for k in CRISIS_KEYWORDS):
-        _st_set("active_state", "CRISIS")
-        _record_message(user_text, "CRISIS", "crisis_keyword", 1.0)
+        st.session_state.active_state = "CRISIS"
+        _record_message(user_text, "CRISIS", "crisis_keyword", 1.0, {})
         return {
             "protocol": "CRISIS",
             "reason": "crisis_keyword",
             "score": 1.0,
-            "details": {"matched_keywords": [k for k in CRISIS_KEYWORDS if k in t]},
+            "details": {},
             "text": user_text,
         }
 
     # Somatic override
     if any(k in t for k in SOMATIC_KEYWORDS):
-        _st_set("active_state", "SOMATIC")
-        _record_message(user_text, "SOMATIC", "somatic_keyword", 0.95)
+        st.session_state.active_state = "SOMATIC"
+        _record_message(user_text, "SOMATIC", "somatic_keyword", 0.95, {})
         return {
             "protocol": "SOMATIC",
             "reason": "somatic_keyword",
             "score": 0.95,
-            "details": {"matched_keywords": [k for k in SOMATIC_KEYWORDS if k in t]},
+            "details": {},
             "text": user_text,
         }
 
-    # Semantic scores
     sem_scores = semantic_scores(user_text)
 
-    # Visual fusion (optional)
     visual_score = 0.0
     if visual is not None:
         try:
@@ -404,48 +356,41 @@ def route_message(user_text, user_context=None, visual=None):
         except Exception as e:
             logger.warning("Visual embedding failed: %s", e)
 
-    # Keyword scores
     kw_scores = {p: keyword_score(user_text, p) for p in PROTOCOLS}
+    rec_scores = {p: recency_score(st.session_state.message_history, p) for p in PROTOCOLS}
 
-    # Recency scores
-    history = _st_get("message_history", [])
-    rec_scores = {p: recency_score(history, p) for p in PROTOCOLS}
-
-    # User preference scores
     user_state = {
-        "preferred_protocol": user_context.get("preferred_protocol"),
-        "active_state": _st_get("active_state"),
+        "preferred_protocol": user_context.get("preferred_protocol") if user_context else None,
+        "active_state": st.session_state.active_state,
     }
     pref_scores = {p: user_pref_score(user_state, p) for p in PROTOCOLS}
 
-    # Weighted aggregation
-    weights = _st_get("routing_weights", DEFAULT_WEIGHTS.copy())
-    final_scores = {}
+    weights = st.session_state.routing_weights
 
-    for p in PROTOCOLS:
-        score = (
-            weights["semantic"] * sem_scores.get(p, 0.0)
-            + weights["keyword"] * kw_scores.get(p, 0.0)
-            + weights["recency"] * rec_scores.get(p, 0.0)
-            + weights["user_pref"] * pref_scores.get(p, 0.0)
+    final_scores = {
+        p: (
+            weights["semantic"] * sem_scores[p]
+            + weights["keyword"] * kw_scores[p]
+            + weights["recency"] * rec_scores[p]
+            + weights["user_pref"] * pref_scores[p]
             + 0.1 * visual_score
         )
-        final_scores[p] = float(score)
+        for p in PROTOCOLS
+    }
 
-    # Semantic crisis amplification
-    if sem_scores.get("CRISIS", 0.0) >= SEMANTIC_DECISIVE_THRESHOLD:
-        _st_set("active_state", "CRISIS")
-        _record_message(user_text, "CRISIS", "semantic_crisis", sem_scores["CRISIS"])
+    if sem_scores["CRISIS"] >= SEMANTIC_DECISIVE_THRESHOLD:
+        st.session_state.active_state = "CRISIS"
+        _record_message(user_text, "CRISIS", "semantic_crisis", sem_scores["CRISIS"], {})
         return {
             "protocol": "CRISIS",
             "reason": "semantic_crisis",
             "score": float(sem_scores["CRISIS"]),
-            "details": {"semantic_score": sem_scores["CRISIS"]},
+            "details": {},
             "text": user_text,
         }
 
-    # Choose best protocol
-    chosen_protocol, chosen_score = max(final_scores.items(), key=lambda kv: kv[1])
+    chosen_protocol = max(final_scores, key=final_scores.get)
+    chosen_score = final_scores[chosen_protocol]
 
     if chosen_score < 0.05:
         chosen_protocol = DEFAULT_PROTOCOL
@@ -454,7 +399,7 @@ def route_message(user_text, user_context=None, visual=None):
     else:
         reason = "weighted_aggregation"
 
-    _st_set("active_state", chosen_protocol)
+    st.session_state.active_state = chosen_protocol
 
     _record_message(user_text, chosen_protocol, reason, chosen_score, {
         "final_scores": final_scores,
@@ -487,24 +432,12 @@ def route_message(user_text, user_context=None, visual=None):
 # ============================================================
 
 def semantic_route(text):
-    try:
-        scores = semantic_scores(text)
-        best = max(scores.items(), key=lambda kv: kv[1])
-        return best[0], float(best[1])
-    except Exception:
-        return None, 0.0
+    scores = semantic_scores(text)
+    best = max(scores, key=scores.get)
+    return best, float(scores[best])
 
 def auto_route(user_text, user_context=None, visual=None):
-    try:
-        return route_message(user_text, user_context=user_context, visual=visual)
-    except Exception as e:
-        return {
-            "protocol": DEFAULT_PROTOCOL,
-            "reason": "auto_route_error",
-            "score": 0.0,
-            "details": {"error": str(e)},
-            "text": user_text,
-        }
+    return route_message(user_text, user_context=user_context, visual=visual)
 
 # ============================================================
 # FEEDBACK
@@ -515,18 +448,13 @@ def submit_feedback(message_index=None, success=True):
     history = st.session_state.message_history
 
     if not history:
-        return {"status": "no_history", "message": "No messages to give feedback on"}
+        return {"status": "no_history"}
 
-    if message_index is None:
-        idx = -1
-    else:
-        if message_index < 0 or message_index >= len(history):
-            return {"status": "bad_index", "message": "message_index out of range"}
-        idx = message_index
+    idx = message_index if message_index is not None else -1
+    if idx < -len(history) or idx >= len(history):
+        return {"status": "bad_index"}
 
-    rec = history[idx]
-    proto = rec.get("protocol")
-
+    proto = history[idx]["protocol"]
     _update_weights_on_feedback(proto, success)
 
     return {
@@ -542,10 +470,11 @@ def submit_feedback(message_index=None, success=True):
 
 def get_user_state() -> dict:
     _ensure_session_defaults()
+    ss = st.session_state
     return {
-        "active_state": st.session_state.active_state,
-        "auto_routing": st.session_state.auto_routing,
-        "routing_weights": dict(st.session_state.routing_weights),
-        "protocol_performance": dict(st.session_state.protocol_performance),
-        "history_len": len(st.session_state.message_history),
+        "active_state": ss.active_state,
+        "auto_routing": ss.auto_routing,
+        "routing_weights": dict(ss.routing_weights),
+        "protocol_performance": dict(ss.protocol_performance),
+        "history_len": len(ss.message_history),
     }
