@@ -88,12 +88,12 @@ def main():
     )
 
     # Dynamic header
-    render_header(logo_path, title=f"Re-Hardwire — {page}")
+    render_header(logo_path, title=f"Re‑Hardwire — {page}")
 
     # Developer Tools
     st.sidebar.divider()
     st.sidebar.subheader("Developer Tools")
-    st.sidebar.checkbox("Enable Developer Mode", key="developer_mode")
+    st.sidebar.checkbox("Enable Developer Mode", key="dev_mode_checkbox", value=st.session_state.developer_mode, on_change=lambda: st.session_state.update({"developer_mode": st.session_state.dev_mode_checkbox}))
 
     if st.session_state.developer_mode:
         st.sidebar.radio(
@@ -117,6 +117,7 @@ def main():
         render_self_guided_controls()
         st.divider()
         render_chat_history()
+        st.text_input("Your message:", key="chat_input")
         assistant_reply = render_chat_input()
 
         if assistant_reply:
@@ -144,7 +145,9 @@ def main():
                     )
 
                 response_stream = stream_llm_response(formatted_messages)
-                response_text = st.write_stream(response_stream)
+                response_text = "".join(response_stream)
+                st.write(response_text)
+
 
             st.session_state.messages.append({
                 "role": "assistant",
