@@ -17,10 +17,6 @@ import streamlit as st
 from PIL import Image
 
 # Routing imports
-from core.routing import (
-    semantic_scores,
-    keyword_score,
-    recency_score,
     user_pref_score,
     auto_route,
     get_user_state,
