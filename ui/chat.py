@@ -33,9 +33,6 @@ def _ensure_chat_session():
 # ---------------------------------------------------------
 
 def render_chat_history():
-    """
-    Render the chat history using Streamlit's chat_message API.
-    """
     apply_chat_theme()
     _ensure_chat_session()
 
@@ -69,75 +66,60 @@ def render_chat_history():
 
 
 # ---------------------------------------------------------
-# RENDER CHAT INPUT + ROUTING
+# RENDER CHAT INPUT (USER ONLY)
 # ---------------------------------------------------------
 
 def render_chat_input():
-    """
-    Render the chat input box, route the message, and append to history.
-    Returns the latest assistant reply (or None).
-    """
     apply_chat_theme()
     _ensure_chat_session()
 
-    # Guaranteed stable input bar
     user_input = st.chat_input("Type your message…")
     if not user_input:
         return None
 
     # Record user message
-    st.session_state.messages.append(
-        {
-            "role": "user",
-            "content": user_input,
-            "ts": time.time(),
-        }
-    )
+    st.session_state.messages.append({
+        "role": "user",
+        "content": user_input,
+        "ts": time.time(),
+    })
 
     # Route message through adaptive routing engine
     routing_result = auto_route(user_input, user_context={})
-    protocol = routing_result.get("protocol")
-    reason = routing_result.get("reason")
-    score = routing_result.get("score", 0.0)
 
-    # Assistant reply (stub — replaced by LLM in app.py)
-    assistant_reply = (
-        f"Routing you to **{protocol}** protocol.\n\n"
-        f"_Reason_: `{reason}` · _Score_: `{score:.3f}`\n\n"
-        f"Your message:\n> {user_input}"
-    )
-
-    # Store routing metadata
-    st.session_state.last_protocol = protocol
+    # Store routing metadata for app.py to use
+    st.session_state.last_protocol = routing_result.get("protocol")
     st.session_state.last_details = routing_result
 
-    # Append assistant message
-    st.session_state.messages.append(
-        {
-            "role": "assistant",
-            "content": assistant_reply,
-            "ts": time.time(),
-            "routing_details": {
-                "protocol": protocol,
-                "reason": reason,
-                "score": score,
-                "details": routing_result.get("details", {}),
-            },
-        }
-    )
-
-    return assistant_reply
+    return user_input, routing_result
 
 
 # ---------------------------------------------------------
-# OPTIONAL: SELF-GUIDED ACHIEVEMENT BUTTON
+# APPEND ASSISTANT MESSAGE (LLM OUTPUT)
+# ---------------------------------------------------------
+
+def append_assistant_message(text, routing_result):
+    """
+    Called by app.py after LLM generates the assistant reply.
+    """
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": text,
+        "ts": time.time(),
+        "routing_details": {
+            "protocol": routing_result.get("protocol"),
+            "reason": routing_result.get("reason"),
+            "score": routing_result.get("score"),
+            "details": routing_result.get("details", {}),
+        },
+    })
+
+
+# ---------------------------------------------------------
+# SELF-GUIDED CONTROLS
 # ---------------------------------------------------------
 
 def render_self_guided_controls():
-    """
-    Render a simple self-guided achievement button stub.
-    Wire this into your actual achievement system as needed.
-    """
     apply_chat_theme()
     _ensure_chat_session()
 
