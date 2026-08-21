@@ -1,31 +1,58 @@
 import os
 import time
+import logging
 import streamlit as st
 
-# Routing state snapshot
-from core.routing import get_user_state
+# ============================================================
+# SILENCE TRANSFORMERS WARNINGS
+# ============================================================
 
-# Storage
+logging.getLogger("transformers").setLevel(logging.ERROR)
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+
+for noisy in [
+    "transformers.models.deepseek_vl_hybrid",
+    "transformers.models.kimi_k25",
+    "transformers.models.paddleocr_vl",
+]:
+    logging.getLogger(noisy).setLevel(logging.ERROR)
+
+
+# ============================================================
+# IMPORTS — CORE
+# ============================================================
+
+from core.routing import get_user_state
 from core.storage import (
     load_saved_history,
     save_history_to_disk,
     load_saved_profile,
     save_profile_to_disk,
 )
-
-# LLM + prompts
 from core.llm import stream_llm_response
 from core.prompts import build_system_prompt, load_system_prompt_master
 
-# UI
+
+# ============================================================
+# IMPORTS — UI
+# ============================================================
+
 from ui.theme import apply_theme
 from ui.header import render_header
 from ui.sidebar import render_sidebar
-from ui.chat import render_chat_history, render_chat_input, render_self_guided_controls
+from ui.chat import (
+    render_chat_history,
+    render_chat_input,
+    render_self_guided_controls,
+)
 from ui.protocol_tuning import render_protocol_tuning
 from ui.routing_lab import render_routing_lab
 
-# Developer Tools
+
+# ============================================================
+# IMPORTS — DEV TOOLS
+# ============================================================
+
 from tools.console import launch_console
 from tools.inspector import launch_inspector
 from tools.tester import launch_tester
@@ -33,51 +60,52 @@ from tools.diagnostic import run_diagnostics, render_diagnostics
 from tools.autocorrect import attempt_autocorrect
 
 
+# ============================================================
+# CONSTANTS
+# ============================================================
+
 HISTORY_FILE = "chat_history.json"
 USER_PROFILE_FILE = "user_profile.json"
 PROMPTS_FILE = "prompts.txt"
 
 
+# ============================================================
+# SESSION INIT
+# ============================================================
+
 def init_session_state():
-    if "theme_mode" not in st.session_state:
-        st.session_state.theme_mode = "Dark"
+    ss = st.session_state
 
-    if "loc_permission" not in st.session_state:
-        st.session_state.loc_permission = False
-    if "notif_permission" not in st.session_state:
-        st.session_state.notif_permission = False
-    if "mic_permission" not in st.session_state:
-        st.session_state.mic_permission = False
+    ss.setdefault("theme_mode", "Dark")
+    ss.setdefault("loc_permission", False)
+    ss.setdefault("notif_permission", False)
+    ss.setdefault("mic_permission", False)
 
-    if "messages" not in st.session_state:
-        st.session_state.messages = load_saved_history(HISTORY_FILE)
+    ss.setdefault("messages", load_saved_history(HISTORY_FILE))
+    ss.setdefault("user_profile", load_saved_profile(USER_PROFILE_FILE))
 
-    if "user_profile" not in st.session_state:
-        st.session_state.user_profile = load_saved_profile(USER_PROFILE_FILE)
+    ss.setdefault("active_state", "CBT")
+    ss.setdefault("auto_routing", True)
 
-    if "active_state" not in st.session_state:
-        st.session_state.active_state = "CBT"
-    if "auto_routing" not in st.session_state:
-        st.session_state.auto_routing = True
+    ss.setdefault("developer_mode", False)
+    ss.setdefault("dev_route", None)
 
-    if "developer_mode" not in st.session_state:
-        st.session_state.developer_mode = False
-    if "dev_route" not in st.session_state:
-        st.session_state.dev_route = None
 
+# ============================================================
+# MAIN APP
+# ============================================================
 
 def main():
     project_root = os.path.dirname(__file__)
     logo_path = os.path.join(project_root, "static", "logo.svg")
 
     st.set_page_config(
-        page_title="Re-Hardwire",
+        page_title="Re‑Hardwire",
         page_icon=logo_path,
         layout="centered"
     )
 
     init_session_state()
-
     apply_theme(logo_path, st.session_state.theme_mode)
 
     # Sidebar navigation
@@ -90,10 +118,21 @@ def main():
     # Dynamic header
     render_header(logo_path, title=f"Re‑Hardwire — {page}")
 
-    # Developer Tools
+    # ========================================================
+    # Developer Mode
+    # ========================================================
+
     st.sidebar.divider()
     st.sidebar.subheader("Developer Tools")
-    st.sidebar.checkbox("Enable Developer Mode", key="dev_mode_checkbox", value=st.session_state.developer_mode, on_change=lambda: st.session_state.update({"developer_mode": st.session_state.dev_mode_checkbox}))
+
+    st.sidebar.checkbox(
+        "Enable Developer Mode",
+        key="dev_mode_checkbox",
+        value=st.session_state.developer_mode,
+        on_change=lambda: st.session_state.update({
+            "developer_mode": st.session_state.dev_mode_checkbox
+        })
+    )
 
     if st.session_state.developer_mode:
         st.sidebar.radio(
@@ -112,12 +151,19 @@ def main():
             launch_tester()
             return
 
-    # Page Routing
+    # ========================================================
+    # PAGE ROUTING
+    # ========================================================
+
     if page == "Chat":
         render_self_guided_controls()
         st.divider()
+
         render_chat_history()
-        st.text_input("Your message:", key="chat_input")
+
+        # Guaranteed text bar
+        user_text = st.text_input("Your message:", key="chat_input")
+
         assistant_reply = render_chat_input()
 
         if assistant_reply:
@@ -132,11 +178,15 @@ def main():
             )
 
             formatted_messages = [{"role": "system", "content": system_prompt}] + [
-                {"role": m["role"], "content": m["content"]} for m in st.session_state.messages
+                {"role": m["role"], "content": m["content"]}
+                for m in st.session_state.messages
             ]
 
             with st.chat_message("assistant", avatar=":material/smart_toy:"):
-                with st.status(f"{detected_state} Protocol Active", expanded=False) as status:
+                with st.status(
+                    f"{detected_state} Protocol Active",
+                    expanded=False
+                ) as status:
                     time.sleep(0.25)
                     status.update(
                         label=f"{detected_state} Protocol Active",
@@ -147,7 +197,6 @@ def main():
                 response_stream = stream_llm_response(formatted_messages)
                 response_text = "".join(response_stream)
                 st.write(response_text)
-
 
             st.session_state.messages.append({
                 "role": "assistant",
@@ -163,6 +212,10 @@ def main():
     elif page == "Protocol Tuning":
         render_protocol_tuning()
 
+
+# ============================================================
+# SAFE EXECUTION WRAPPER
+# ============================================================
 
 if __name__ == "__main__":
     try:

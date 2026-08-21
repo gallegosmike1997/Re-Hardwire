@@ -27,62 +27,113 @@ def get_svg_data_uri(file_path: str) -> str:
 
 def render_header(logo_path: str, title: str = "Re‑Hardwire"):
     """
-    Render the Re-Hardwire hero header with dynamic page title.
+    Render the Re-Hardwire hero header with:
+    - Dynamic title
+    - Glow animation
+    - Perfect spacing
+    - Gradient text
+    - Glass-card container
     """
+
     logo_uri = get_svg_data_uri(logo_path)
 
     st.markdown(
         f"""
+        <style>
+
+        /* Glow animation */
+        @keyframes rhGlow {{
+            0% {{
+                text-shadow: 0 0 6px rgba(13,148,136,0.45),
+                             0 0 12px rgba(13,148,136,0.35),
+                             0 0 18px rgba(13,148,136,0.25);
+            }}
+            50% {{
+                text-shadow: 0 0 12px rgba(13,148,136,0.65),
+                             0 0 20px rgba(13,148,136,0.45),
+                             0 0 28px rgba(13,148,136,0.35);
+            }}
+            100% {{
+                text-shadow: 0 0 6px rgba(13,148,136,0.45),
+                             0 0 12px rgba(13,148,136,0.35),
+                             0 0 18px rgba(13,148,136,0.25);
+            }}
+        }}
+
+        /* Perfect spacing */
+        .hero-container {{
+            margin-top: 14px;
+            margin-bottom: 22px;
+        }}
+
+        </style>
+
         <div class="hero-container" style="
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             text-align: center;
-            margin-top: 1rem;
-            margin-bottom: 16px;
-            padding: 4px 15px;
+            padding: 22px 24px;
         ">
-            <div class="hero-logo-wrapper" style="
-                width: 68px;
-                height: 68px;
-                border-radius: 50%;
-                background-color: rgba(255,255,255,0.08);
+
+            <!-- Glass-card container -->
+            <div style="
+                backdrop-filter: blur(18px);
+                background: rgba(255,255,255,0.08);
                 border: 1px solid rgba(255,255,255,0.12);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin-bottom: 10px;
-                box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
+                border-radius: 24px;
+                padding: 32px 48px;
+                text-align: center;
+                box-shadow: 0 12px 40px rgba(0,0,0,0.25);
             ">
-                <img src="{logo_uri}" class="hero-logo" style="width: 40px; height: 40px;" />
-            </div>
 
-            <h1 class="hero-title" style="
-                font-size: 2.7rem;
-                font-weight: 900;
-                letter-spacing: -0.02em;
-                font-family: 'Montserrat', 'Inter', sans-serif;
-                text-transform: uppercase;
-                background: linear-gradient(180deg, #FFFFFF 10%, #F4F4F5 50%, #A1A1AA 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                -webkit-text-stroke: 2.4px #0D9488;
-                margin: 0;
-                padding: 0;
-            ">
-                {title}
-            </h1>
+                <!-- Logo -->
+                <div style="
+                    width: 72px;
+                    height: 72px;
+                    border-radius: 50%;
+                    background-color: rgba(255,255,255,0.08);
+                    border: 1px solid rgba(255,255,255,0.12);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 18px auto;
+                    box-shadow: 0 4px 12px rgba(13,148,136,0.35);
+                ">
+                    <img src="{logo_uri}" style="width: 42px; height: 42px;" />
+                </div>
 
-            <div class="hero-subtitle" style="
-                font-size: 0.88rem;
-                color: #A1A1AA;
-                margin-top: 6px;
-                letter-spacing: 0.03em;
-                text-transform: uppercase;
-                font-weight: 600;
-            ">
-                Adaptive Cognitive Routing Engine • CBT • DBT • ACT • Somatic
+                <!-- Dynamic Title with Gradient + Glow -->
+                <h1 style="
+                    font-size: 2.7rem;
+                    font-weight: 900;
+                    letter-spacing: -0.02em;
+                    font-family: 'Montserrat', 'Inter', sans-serif;
+                    text-transform: uppercase;
+                    background: linear-gradient(180deg, #FFFFFF 10%, #F4F4F5 50%, #A1A1AA 100%);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    -webkit-text-stroke: 2.4px #0D9488;
+                    margin: 0;
+                    padding: 0;
+                    animation: rhGlow 3.2s ease-in-out infinite;
+                ">
+                    {title}
+                </h1>
+
+                <!-- Subtitle -->
+                <div style="
+                    font-size: 0.88rem;
+                    color: #A1A1AA;
+                    margin-top: 10px;
+                    letter-spacing: 0.03em;
+                    text-transform: uppercase;
+                    font-weight: 600;
+                ">
+                    Adaptive Cognitive Routing Engine • CBT • DBT • ACT • Somatic
+                </div>
+
             </div>
         </div>
         """,
