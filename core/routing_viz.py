@@ -12,17 +12,24 @@ Provides:
 
 from __future__ import annotations
 import numpy as np
-import torch
 import streamlit as st
 from PIL import Image
 
-# Routing imports
-    user_pref_score,
+# ------------------------------------------------------------
+# Correct routing imports (NO circular import)
+# ------------------------------------------------------------
+from core.routing import (
     auto_route,
+    semantic_scores,
+    keyword_score,
+    recency_score,
+    user_pref_score,
     get_user_state,
 )
 
-# Visual somatic imports
+# ------------------------------------------------------------
+# Somatic visual embedding
+# ------------------------------------------------------------
 from core.visual_somatic import somatic_visual_embedding
 
 
@@ -51,11 +58,11 @@ def show_protocol_scores(final_scores: dict):
 # ------------------------------------------------------------
 # Semantic Heatmap
 # ------------------------------------------------------------
-def show_semantic_heatmap(semantic_scores: dict):
+def show_semantic_heatmap(semantic_scores_dict: dict):
     _section("Semantic Similarity Heatmap")
 
-    protos = list(semantic_scores.keys())
-    values = np.array([semantic_scores[p] for p in protos])
+    protos = list(semantic_scores_dict.keys())
+    values = np.array([semantic_scores_dict[p] for p in protos])
 
     st.bar_chart(values, height=200)
 
@@ -99,7 +106,6 @@ def show_visual_embedding(img: Image.Image):
     st.write("Embedding mean:", float(emb.mean()))
     st.write("Embedding norm:", float(emb.norm()))
 
-    # Show histogram
     st.write("Embedding Distribution")
     st.line_chart(emb.numpy())
 
@@ -145,7 +151,10 @@ def run_viz_app():
     st.title("Re-Hardwire Routing V5 — Visualization Dashboard")
 
     text = st.text_area("Enter user text:", "")
-    visual_file = st.file_uploader("Upload somatic visual (optional):", type=["png", "jpg", "jpeg"])
+    visual_file = st.file_uploader(
+        "Upload somatic visual (optional):",
+        type=["png", "jpg", "jpeg"]
+    )
 
     visual_img = None
     if visual_file:

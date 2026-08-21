@@ -12,7 +12,7 @@ import streamlit as st
 from PIL import Image
 
 from core.routing import auto_route, get_user_state
-from routing_viz import routing_inspector  # your existing visualizer
+from core.routing_viz import routing_inspector   # FIXED IMPORT
 
 
 def render_routing_lab():
@@ -38,7 +38,11 @@ def render_routing_lab():
     visual_img = None
     if visual_file is not None:
         visual_img = Image.open(visual_file).convert("RGB")
-        st.image(visual_img, caption="Uploaded Somatic Visual", use_column_width=True)
+        st.image(
+            visual_img,
+            caption="Uploaded Somatic Visual",
+            use_column_width=True
+        )
 
     # -----------------------------
     # RUN ROUTING
