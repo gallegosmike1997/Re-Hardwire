@@ -1,6 +1,17 @@
 import streamlit as st
 import time
+import asyncio
+from tools.pdf_export import generate_pdf
 
+if st.button("Export PDF"):
+    pdf_bytes = asyncio.run(generate_pdf("http://localhost:8501"))
+    st.download_button(
+        "Download PDF",
+        pdf_bytes,
+        file_name="Re-Hardwire.pdf",
+        mime="application/pdf"
+    )
+    
 # Optional chat theme hook
 try:
     from ui.theme import apply_chat_theme
