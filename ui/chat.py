@@ -11,7 +11,7 @@ if st.button("Export PDF"):
         file_name="Re-Hardwire.pdf",
         mime="application/pdf"
     )
-    
+
 # Optional chat theme hook
 try:
     from ui.theme import apply_chat_theme

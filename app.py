@@ -99,10 +99,11 @@ def main():
     project_root = os.path.dirname(__file__)
     logo_path = os.path.join(project_root, "static", "logo.svg")
 
+    # ⭐ FIXED: Wide layout so header renders correctly
     st.set_page_config(
         page_title="Re‑Hardwire",
         page_icon=logo_path,
-        layout="centered"
+        layout="wide"
     )
 
     init_session_state()
@@ -115,10 +116,9 @@ def main():
         save_profile_to_disk=save_profile_to_disk,
     )
 
-    # Dynamic header
+    # ⭐ FIXED: Header now renders properly in wide layout
     header_title = f"Re‑Hardwire — {page}"
     render_header(logo_path, title=header_title)
-    print("HEADER DEBUG:", header_title)
 
     # ========================================================
     # Developer Mode
