@@ -1,5 +1,6 @@
 import streamlit as st
 import base64
+from textwrap import dedent
 
 
 def load_svg(svg_path: str) -> str:
@@ -18,7 +19,7 @@ def render_header(logo_path: str, title: str):
 
     svg_uri = load_svg(logo_path)
 
-    header_html = f"""
+    header_html = dedent(f"""
     <style>
         @keyframes rhGlow {{
             0% {{
@@ -91,6 +92,11 @@ def render_header(logo_path: str, title: str):
         </div>
 
     </div>
-    """
+    """)
 
-    st.markdown(header_html, unsafe_allow_html=True)
+    st.html(header_html)
+# Prevent header from overlapping chat input
+    st.markdown(
+    "<div style='height: 40px;'></div>",
+    unsafe_allow_html=True
+)

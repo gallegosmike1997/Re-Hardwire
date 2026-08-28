@@ -43,7 +43,6 @@ from ui.sidebar import render_sidebar
 from ui.chat import (
     render_chat_history,
     render_chat_input,
-    render_self_guided_controls,
 )
 from ui.protocol_tuning import render_protocol_tuning
 from ui.routing_lab import render_routing_lab
@@ -121,55 +120,23 @@ def main():
     render_header(logo_path, title=header_title)
 
     # ========================================================
-    # Developer Mode
-    # ========================================================
-
-    st.sidebar.divider()
-    st.sidebar.subheader("Developer Tools")
-
-    st.sidebar.checkbox(
-        "Enable Developer Mode",
-        key="dev_mode_checkbox",
-        value=st.session_state.developer_mode,
-        on_change=lambda: st.session_state.update({
-            "developer_mode": st.session_state.dev_mode_checkbox
-        })
-    )
-
-    if st.session_state.developer_mode:
-        st.sidebar.radio(
-            "Developer Route",
-            ["Console", "Inspector", "Tester", "None"],
-            key="dev_route"
-        )
-
-        if st.session_state.dev_route == "Console":
-            launch_console()
-            return
-        if st.session_state.dev_route == "Inspector":
-            launch_inspector()
-            return
-        if st.session_state.dev_route == "Tester":
-            launch_tester()
-            return
-
-    # ========================================================
     # PAGE ROUTING
     # ========================================================
 
     if page == "Chat":
-        render_self_guided_controls()
+        st.markdown("### Conversation Settings")
         st.divider()
 
         render_chat_history()
 
-        # Guaranteed text bar
-        user_text = st.text_input("Your message:", key="chat_input")
-
         assistant_reply = render_chat_input()
 
         if assistant_reply:
-            detected_state = st.session_state.active_state
+            user_text, routing_result = assistant_reply
+            detected_state = routing_result.get(
+                "protocol",
+                st.session_state.active_state,
+            )
 
             system_prompt_master = load_system_prompt_master(PROMPTS_FILE)
             system_prompt = build_system_prompt(
@@ -179,10 +146,17 @@ def main():
                 loc_permission=st.session_state.loc_permission,
             )
 
-            formatted_messages = [{"role": "system", "content": system_prompt}] + [
+            formatted_messages = [{"role": "system", "content": system_prompt}]
+
+            # Add the user message directly (not stored)
+            formatted_messages.append({"role": "user", "content": user_text})
+
+            # Add assistant history only
+            formatted_messages.extend([
                 {"role": m["role"], "content": m["content"]}
                 for m in st.session_state.messages
-            ]
+            ])
+
 
             with st.chat_message("assistant", avatar=":material/smart_toy:"):
                 with st.status(

@@ -324,7 +324,7 @@ def route_message(user_text, user_context=None, visual=None):
 
     # Crisis override
     if any(k in t for k in CRISIS_KEYWORDS):
-        st.session_state.active_state = "CRISIS"
+        st.session_state.detected_protocol = "CRISIS"
         _record_message(user_text, "CRISIS", "crisis_keyword", 1.0, {})
         return {
             "protocol": "CRISIS",
@@ -336,7 +336,7 @@ def route_message(user_text, user_context=None, visual=None):
 
     # Somatic override
     if any(k in t for k in SOMATIC_KEYWORDS):
-        st.session_state.active_state = "SOMATIC"
+        st.session_state.detected_protocol = "SOMATIC"
         _record_message(user_text, "SOMATIC", "somatic_keyword", 0.95, {})
         return {
             "protocol": "SOMATIC",
@@ -379,7 +379,7 @@ def route_message(user_text, user_context=None, visual=None):
     }
 
     if sem_scores["CRISIS"] >= SEMANTIC_DECISIVE_THRESHOLD:
-        st.session_state.active_state = "CRISIS"
+        st.session_state.detected_protocol = "CRISIS"
         _record_message(user_text, "CRISIS", "semantic_crisis", sem_scores["CRISIS"], {})
         return {
             "protocol": "CRISIS",
@@ -399,7 +399,7 @@ def route_message(user_text, user_context=None, visual=None):
     else:
         reason = "weighted_aggregation"
 
-    st.session_state.active_state = chosen_protocol
+    st.session_state.detected_protocol = chosen_protocol
 
     _record_message(user_text, chosen_protocol, reason, chosen_score, {
         "final_scores": final_scores,
