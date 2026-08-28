@@ -1,0 +1,8 @@
+[server]
+headless = true
+
+[theme]
+base = "dark"
+
+[environment]
+AI_TOOL_MODE = "OFFLINE"
