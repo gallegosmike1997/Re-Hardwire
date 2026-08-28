@@ -1,172 +1,126 @@
 """
-routing_viz.py — Streamlit Visualization Dashboard for Re-Hardwire Routing V5
+core/routing_viz.py — Polished Routing Visualization for Re‑Hardwire
 
 Provides:
-- Protocol score visualization
+- Protocol badge
 - Semantic similarity heatmap
 - Keyword match indicators
-- Recency + user preference breakdown
-- Visual somatic embedding viewer
-- Full routing decision inspector
+- Recency + preference bars
+- Somatic visual embedding viewer
+- Full routing breakdown
 """
 
 from __future__ import annotations
-import numpy as np
 import streamlit as st
+import numpy as np
 from PIL import Image
 
-# ------------------------------------------------------------
-# Correct routing imports (NO circular import)
-# ------------------------------------------------------------
-from core.routing import (
-    auto_route,
-    semantic_scores,
-    keyword_score,
-    recency_score,
-    user_pref_score,
-    get_user_state,
-)
 
-# ------------------------------------------------------------
-# Somatic visual embedding
-# ------------------------------------------------------------
-from core.visual_somatic import somatic_visual_embedding
+# ---------------------------------------------------------
+# Small reusable badge component
+# ---------------------------------------------------------
 
-
-# ------------------------------------------------------------
-# Utility
-# ------------------------------------------------------------
-def _section(title: str):
-    st.markdown(f"### {title}")
+def _badge(text, color="#0D9488"):
+    return f"""
+    <span style="
+        display:inline-block;
+        padding:4px 10px;
+        border-radius:12px;
+        background:{color};
+        color:white;
+        font-size:0.78rem;
+        font-weight:600;
+        letter-spacing:0.03em;
+        margin-right:6px;
+    ">{text}</span>
+    """
 
 
-def _sub(text: str):
-    st.markdown(f"**{text}**")
+# ---------------------------------------------------------
+# Main Routing Inspector
+# ---------------------------------------------------------
 
+def routing_inspector(text: str, visual_img: Image.Image | None):
+    st.markdown("### Routing Inspector")
 
-# ------------------------------------------------------------
-# Protocol Score Bars
-# ------------------------------------------------------------
-def show_protocol_scores(final_scores: dict):
-    _section("Protocol Score Breakdown")
+    # ---------------------------------------------------------
+    # PROTOCOL BADGE
+    # ---------------------------------------------------------
 
-    for proto, score in final_scores.items():
-        st.write(f"{proto}: {score:.4f}")
-        st.progress(min(1.0, score))
+    st.markdown("#### Protocol")
+    proto = st.session_state.last_details.get("protocol")
+    if proto:
+        st.markdown(_badge(proto), unsafe_allow_html=True)
+    else:
+        st.info("No protocol detected.")
 
+    # ---------------------------------------------------------
+    # SEMANTIC SIMILARITY HEATMAP
+    # ---------------------------------------------------------
 
-# ------------------------------------------------------------
-# Semantic Heatmap
-# ------------------------------------------------------------
-def show_semantic_heatmap(semantic_scores_dict: dict):
-    _section("Semantic Similarity Heatmap")
+    semantic_scores = st.session_state.last_details.get("semantic_scores")
+    if semantic_scores is not None:
+        st.markdown("#### Semantic Similarity")
+        st.caption("Higher values indicate stronger semantic alignment with protocol exemplars.")
 
-    protos = list(semantic_scores_dict.keys())
-    values = np.array([semantic_scores_dict[p] for p in protos])
+        arr = np.array(semantic_scores).reshape(1, -1)
+        st.dataframe(arr, height=80)
 
-    st.bar_chart(values, height=200)
+    # ---------------------------------------------------------
+    # KEYWORD MATCH INDICATORS
+    # ---------------------------------------------------------
 
+    keyword_score = st.session_state.last_details.get("keyword_score")
+    if keyword_score is not None:
+        st.markdown("#### Keyword Match")
+        st.progress(min(max(keyword_score, 0.0), 1.0))
+        st.caption(f"Keyword match score: **{keyword_score:.3f}**")
 
-# ------------------------------------------------------------
-# Keyword Match Indicators
-# ------------------------------------------------------------
-def show_keyword_matches(text: str, keyword_scores: dict):
-    _section("Keyword Match Indicators")
+    # ---------------------------------------------------------
+    # RECENCY + USER PREFERENCE
+    # ---------------------------------------------------------
 
-    for proto, score in keyword_scores.items():
-        st.write(f"{proto}: {score:.4f}")
-        st.progress(min(1.0, score))
+    recency_score = st.session_state.last_details.get("recency_score")
+    user_pref_score = st.session_state.last_details.get("user_pref_score")
 
+    st.markdown("#### Recency & Preference Signals")
 
-# ------------------------------------------------------------
-# Recency + User Preference Breakdown
-# ------------------------------------------------------------
-def show_recency_pref(recency_scores: dict, pref_scores: dict):
-    _section("Recency & User Preference Influence")
+    if recency_score is not None:
+        st.progress(min(max(recency_score, 0.0), 1.0))
+        st.caption(f"Recency score: **{recency_score:.3f}**")
 
-    st.write("**Recency Scores**")
-    for proto, score in recency_scores.items():
-        st.write(f"{proto}: {score:.4f}")
+    if user_pref_score is not None:
+        st.progress(min(max(user_pref_score, 0.0), 1.0))
+        st.caption(f"User preference score: **{user_pref_score:.3f}**")
 
-    st.write("**User Preference Scores**")
-    for proto, score in pref_scores.items():
-        st.write(f"{proto}: {score:.4f}")
+    # ---------------------------------------------------------
+    # SOMATIC VISUAL EMBEDDING VIEWER
+    # ---------------------------------------------------------
 
+    if visual_img is not None:
+        st.markdown("#### Somatic Visual Embedding")
+        st.caption("Embedding preview for the uploaded somatic visual.")
 
-# ------------------------------------------------------------
-# Visual Somatic Embedding Viewer
-# ------------------------------------------------------------
-def show_visual_embedding(img: Image.Image):
-    _section("Visual Somatic Embedding")
+        try:
+            from core.visual_somatic import somatic_visual_embedding
+            emb = somatic_visual_embedding(visual_img)
 
-    st.image(img, caption="Somatic Experience Visual", use_column_width=True)
+            st.json({"embedding_dim": len(emb), "preview": emb[:16]})
+        except Exception:
+            st.warning("Somatic visual embedding unavailable.")
 
-    emb = somatic_visual_embedding(img)
-    st.write("Embedding shape:", emb.shape)
-    st.write("Embedding mean:", float(emb.mean()))
-    st.write("Embedding norm:", float(emb.norm()))
-
-    st.write("Embedding Distribution")
-    st.line_chart(emb.numpy())
-
-
-# ------------------------------------------------------------
-# Full Routing Inspector
-# ------------------------------------------------------------
-def routing_inspector(text: str, visual: Image.Image | None = None):
-    _section("Routing Inspector")
-
-    result = auto_route(text, visual=visual)
-    details = result["details"]
-
-    st.write("**Chosen Protocol:**", result["protocol"])
-    st.write("**Reason:**", result["reason"])
-    st.write("**Score:**", result["score"])
-
-    # Protocol scores
-    show_protocol_scores(details["final_scores"])
-
-    # Semantic heatmap
-    show_semantic_heatmap(details["semantic_scores"])
-
-    # Keyword matches
-    show_keyword_matches(text, details["keyword_scores"])
-
-    # Recency + user preference
-    show_recency_pref(details["recency_scores"], details["pref_scores"])
-
-    # Visual embedding (if provided)
-    if visual is not None:
-        show_visual_embedding(visual)
-
-    # Raw details
-    _section("Raw Routing Details")
-    st.json(details)
-
-
-# ------------------------------------------------------------
-# Standalone Streamlit App
-# ------------------------------------------------------------
-def run_viz_app():
-    st.title("Re-Hardwire Routing V5 — Visualization Dashboard")
-
-    text = st.text_area("Enter user text:", "")
-    visual_file = st.file_uploader(
-        "Upload somatic visual (optional):",
-        type=["png", "jpg", "jpeg"]
-    )
-
-    visual_img = None
-    if visual_file:
-        visual_img = Image.open(visual_file).convert("RGB")
-
-    if st.button("Run Routing"):
-        routing_inspector(text, visual_img)
+    # ---------------------------------------------------------
+    # FULL ROUTING DETAILS
+    # ---------------------------------------------------------
 
     st.markdown("---")
-    st.markdown("**User State:**")
-    st.json(get_user_state())
+    st.markdown("### Full Routing Metadata")
 
+    details = st.session_state.last_details.get("details", {})
+    st.json(details)
 
-if __name__ == "__main__":
-    run_viz_app()
+    st.markdown("---")
+    st.caption(
+        "Routing Inspector visualizes how Re‑Hardwire blends semantic, keyword, recency, "
+        "preference, and somatic signals to determine the active protocol."
+    )
