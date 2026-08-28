@@ -25,23 +25,16 @@ def get_svg_data_uri(file_path: str) -> str:
     )
 
 
-def render_header(logo_path: str, title: str = "Re‑Hardwire"):
+def render_header(logo_path: str, title: str):
     """
-    Render the Re-Hardwire hero header with:
-    - Dynamic title
-    - Glow animation
-    - Perfect spacing
-    - Gradient text
-    - Glass-card container
+    Render the Re-Hardwire hero header with direct dynamic title injection.
+    This version is fully PDF-safe and eliminates placeholder timing issues.
     """
 
     logo_uri = get_svg_data_uri(logo_path)
 
-    st.markdown(
-        f"""
-        <style>
-
-        /* Glow animation */
+    html = f"""
+    <style>
         @keyframes rhGlow {{
             0% {{
                 text-shadow: 0 0 6px rgba(13,148,136,0.45),
@@ -59,83 +52,78 @@ def render_header(logo_path: str, title: str = "Re‑Hardwire"):
                              0 0 18px rgba(13,148,136,0.25);
             }}
         }}
+    </style>
 
-        /* Perfect spacing */
-        .hero-container {{
-            margin-top: 14px;
-            margin-bottom: 22px;
-        }}
+    <div class="hero-container" style="
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 22px 24px;
+        margin-top: 14px;
+        margin-bottom: 22px;
+    ">
 
-        </style>
-
-        <div class="hero-container" style="
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+        <!-- Glass-card container -->
+        <div style="
+            backdrop-filter: blur(18px);
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 24px;
+            padding: 32px 48px;
             text-align: center;
-            padding: 22px 24px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.25);
         ">
 
-            <!-- Glass-card container -->
+            <!-- Logo -->
             <div style="
-                backdrop-filter: blur(18px);
-                background: rgba(255,255,255,0.08);
+                width: 72px;
+                height: 72px;
+                border-radius: 50%;
+                background-color: rgba(255,255,255,0.08);
                 border: 1px solid rgba(255,255,255,0.12);
-                border-radius: 24px;
-                padding: 32px 48px;
-                text-align: center;
-                box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 18px auto;
+                box-shadow: 0 4px 12px rgba(13,148,136,0.35);
             ">
-
-                <!-- Logo -->
-                <div style="
-                    width: 72px;
-                    height: 72px;
-                    border-radius: 50%;
-                    background-color: rgba(255,255,255,0.08);
-                    border: 1px solid rgba(255,255,255,0.12);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    margin: 0 auto 18px auto;
-                    box-shadow: 0 4px 12px rgba(13,148,136,0.35);
-                ">
-                    <img src="{logo_uri}" style="width: 42px; height: 42px;" />
-                </div>
-
-                <!-- Dynamic Title with Gradient + Glow -->
-                <h1 style="
-                    font-size: 2.7rem;
-                    font-weight: 900;
-                    letter-spacing: -0.02em;
-                    font-family: 'Montserrat', 'Inter', sans-serif;
-                    text-transform: uppercase;
-                    background: linear-gradient(180deg, #FFFFFF 10%, #F4F4F5 50%, #A1A1AA 100%);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                    -webkit-text-stroke: 2.4px #0D9488;
-                    margin: 0;
-                    padding: 0;
-                    animation: rhGlow 3.2s ease-in-out infinite;
-                ">
-                    {title}
-                </h1>
-
-                <!-- Subtitle -->
-                <div style="
-                    font-size: 0.88rem;
-                    color: #A1A1AA;
-                    margin-top: 10px;
-                    letter-spacing: 0.03em;
-                    text-transform: uppercase;
-                    font-weight: 600;
-                ">
-                    Adaptive Cognitive Routing Engine • CBT • DBT • ACT • Somatic
-                </div>
-
+                <img src="{logo_uri}" style="width: 42px; height: 42px;" />
             </div>
+
+            <!-- Dynamic Title (direct injection) -->
+            <h1 id="rh-title" style="
+                font-size: 2.7rem;
+                font-weight: 900;
+                letter-spacing: -0.02em;
+                font-family: 'Montserrat', 'Inter', sans-serif;
+                text-transform: uppercase;
+                background: linear-gradient(180deg, #FFFFFF 10%, #F4F4F5 50%, #A1A1AA 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                -webkit-text-stroke: 2.4px #0D9488;
+                margin: 0;
+                padding: 0;
+                animation: rhGlow 3.2s ease-in-out infinite;
+            ">
+                {title}
+            </h1>
+
+            <!-- Subtitle -->
+            <div style="
+                font-size: 0.88rem;
+                color: #A1A1AA;
+                margin-top: 10px;
+                letter-spacing: 0.03em;
+                text-transform: uppercase;
+                font-weight: 600;
+            ">
+                Adaptive Cognitive Routing Engine • CBT • DBT • ACT • Somatic
+            </div>
+
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    </div>
+    """
+
+    st.markdown(html, unsafe_allow_html=True)

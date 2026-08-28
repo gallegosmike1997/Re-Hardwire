@@ -116,7 +116,9 @@ def main():
     )
 
     # Dynamic header
-    render_header(logo_path, title=f"Re‑Hardwire — {page}")
+    header_title = f"Re‑Hardwire — {page}"
+    render_header(logo_path, title=header_title)
+    print("HEADER DEBUG:", header_title)
 
     # ========================================================
     # Developer Mode
