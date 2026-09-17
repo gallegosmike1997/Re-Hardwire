@@ -1,23 +1,32 @@
-# Python
+.pytest_cache/
+.venv/
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
-*.pyd
-
-# Virtual environments
+*.egg-info/
+build/
+dist/
+*.egg
+node_modules/
+.next/
+out/
+.cache/
+.DS_Store
+Thumbs.db
+pids/
+logs/
+# Local environments, secrets, and runtime data
 venv/
-venv312/
-venv310/
 .env
 .env.*
+!.env.example
+!.env.sample
+/backend/data/
+*.pem
+*.key
 
-# Editor / OS
-.vscode/
-.idea/
-.DS_Store
-
-# Streamlit / local
+# Generated files and local tooling state
+*.tsbuildinfo
 *.log
+/.kombai/
 
-# Project runtime artifacts
-chat_history.json

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Re-Hardwire">
+  <defs>
+    <linearGradient id="hw-signal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#05070a"/>
+  <g stroke="#1e2937" stroke-width="2">
+    <path d="M4 44h120M4 84h120M44 4v120M84 4v120"/>
+  </g>
+  <circle cx="44" cy="84" r="7" fill="url(#hw-signal)"/>
+  <circle cx="84" cy="44" r="7" fill="url(#hw-signal)"/>
+  <path d="M84 44H52a8 8 0 0 0-8 8v24" fill="none" stroke="url(#hw-signal)" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="96" cy="84" r="4" fill="#34d399"/>
+</svg>
