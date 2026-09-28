@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatTime, humanize } from '@/lib/format';
+import { useProfileStore } from '@/state/useProfileStore';
 import { Badge, Icon, toneForAction, toneForState } from '@/components/ui';
 import type { LLMMessage } from '@/lib/api';
 import type { RouteResponse } from '@/lib/api';
@@ -15,6 +16,58 @@ export interface ChatMessageProps {
 
 export function ChatMessage({ message, route, isStreaming = false }: ChatMessageProps) {
   const isUser = message.role === 'user';
+  const showSignals = useProfileStore((state) => state.ui.showSignals);
+  const [speaking, setSpeaking] = useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
+
+  const profile = useProfileStore((state) => state.profile);
+  const enabled = Boolean(profile?.preferences.ttsEnabled && profile.permissions.includes('tts'));
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [supported, setSupported] = useState(false);
+  useEffect(() => { setSupported('speechSynthesis' in window); }, []);
+  useEffect(() => {
+    return () => {
+      if (utteranceRef.current) {
+        utteranceRef.current.onend = utteranceRef.current.onerror = null;
+        window.speechSynthesis?.cancel();
+        utteranceRef.current = null;
+      }
+    };
+  }, []);
+  useEffect(() => {
+    if (!enabled && utteranceRef.current) {
+      window.speechSynthesis?.cancel();
+      utteranceRef.current = null;
+      setSpeaking('idle');
+    }
+  }, [enabled]);
+
+  const speak = () => {
+    if (!enabled || !supported || isStreaming) return;
+    if (speaking === 'playing' || speaking === 'loading') {
+      window.speechSynthesis.cancel();
+      utteranceRef.current = null;
+      setSpeaking('idle');
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(message.content);
+      utterance.lang = typeof profile?.preferences.voiceLanguage === 'string'
+        ? profile.preferences.voiceLanguage : navigator.language;
+      utteranceRef.current = utterance;
+      utterance.onstart = () => setSpeaking('playing');
+      utterance.onend = () => { utteranceRef.current = null; setSpeaking('idle'); };
+      utterance.onerror = (event) => {
+        utteranceRef.current = null;
+        setSpeaking(event.error === 'canceled' || event.error === 'interrupted' ? 'idle' : 'error');
+      };
+      setSpeaking('loading');
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      utteranceRef.current = null;
+      setSpeaking('error');
+    }
+  };
 
   return (
     <article
@@ -54,7 +107,20 @@ export function ChatMessage({ message, route, isStreaming = false }: ChatMessage
           )}
         </div>
 
-        {!isUser && route && (
+        {!isUser && (
+          <button
+            type="button"
+            onClick={() => void speak()}
+            disabled={!enabled || !supported || isStreaming}
+            title={!enabled ? 'Enable TTS responses and its capability in Settings' : !supported ? 'Speech playback is unsupported in this browser' : 'Read this reply aloud'}
+            className="hw-focus mt-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-500 transition-colors hover:text-signal-300 disabled:opacity-60"
+          >
+            {speaking === 'loading' || speaking === 'playing' ? 'Stop speaking' : 'Speak'}
+            {speaking === 'error' && <span role="alert" className="text-alarm">Speech playback unavailable. Check browser voices and audio settings.</span>}
+          </button>
+        )}
+
+        {!isUser && route && showSignals && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <Badge tone="signal">{route.protocol}</Badge>
             <Badge tone={toneForState(route.emotionalState)}>
@@ -137,5 +203,3 @@ export function RouteChip({ route }: RouteChipProps) {
     </button>
   );
 }
-
-import { useState } from 'react';

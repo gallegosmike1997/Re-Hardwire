@@ -1,9 +1,7 @@
-"""LLM client for Re-Hardwire.
+"""LLM client with scripted local, OpenAI and Ollama providers.
 
-Defaults to a deterministic, local response generator so the whole stack runs
-with zero external dependencies and zero API keys. Point ``LLM_PROVIDER`` at a
-real backend later and implement :func:`_remote_response` - the public
-signatures stay identical either way.
+The default local mode requires no API keys. External providers are explicitly
+configured on the backend; responses use the existing non-streaming API contract.
 """
 from __future__ import annotations
 
@@ -11,7 +9,9 @@ from typing import Iterable, Iterator, List, Mapping, Optional
 
 from app.core.config import settings
 
-from .prompts import last_user_message
+import httpx
+
+from .prompts import build_messages, last_user_message
 
 CRISIS_TERMS = (
     "kill myself", "end my life", "suicide", "suicidal", "self harm",
@@ -114,12 +114,46 @@ def _local_response(
     return "\n\n".join(parts)
 
 
-def _remote_response(messages: List[dict]) -> str:  # pragma: no cover - no provider wired up
-    """Hook for a hosted model. Raises until a provider is implemented."""
-    raise NotImplementedError(
-        f"LLM provider '{settings.llm_provider}' is not implemented. "
-        "Set LLM_PROVIDER=local or implement _remote_response()."
-    )
+class ProviderError(RuntimeError):
+    """Public, sanitized provider failure; never includes credentials or transcripts."""
+
+
+def _remote_response(messages: List[dict]) -> str:
+    """Use the configured provider only; never silently send data elsewhere."""
+    provider = settings.llm_provider
+    headers = {}
+    if provider == "openai":
+        if not settings.llm_api_key:
+            raise ProviderError("OpenAI requires LLM_API_KEY or OPENAI_API_KEY on the backend.")
+        url = (settings.llm_base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
+        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
+        payload = {
+            "model": settings.llm_model, "messages": messages, "stream": False,
+            "temperature": settings.llm_temperature, "max_tokens": settings.llm_max_tokens,
+        }
+    elif provider == "ollama":
+        url = (settings.llm_base_url or "http://localhost:11434").rstrip("/") + "/api/chat"
+        payload = {
+            "model": settings.llm_model, "messages": messages, "stream": False,
+            "options": {"temperature": settings.llm_temperature, "num_predict": settings.llm_max_tokens},
+        }
+    else:
+        raise ProviderError("Unsupported LLM_PROVIDER. Use local, openai, or ollama.")
+    if settings.llm_model == "re-hardwire-local" or not settings.llm_model.strip():
+        raise ProviderError("Set LLM_MODEL to a model available from the configured provider.")
+    try:
+        response = httpx.post(url, json=payload, headers=headers, timeout=settings.llm_timeout)
+        response.raise_for_status()
+        data = response.json()
+        content = (data["choices"][0]["message"]["content"] if provider == "openai"
+                   else data["message"]["content"])
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("Empty response")
+        return content
+    except httpx.TimeoutException:
+        raise ProviderError("The LLM provider timed out. Please try again.") from None
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
+        raise ProviderError("The LLM provider failed. Check backend provider configuration and availability.") from None
 
 
 def stream_llm_response(
@@ -136,8 +170,12 @@ def stream_llm_response(
     message_list = [dict(message) for message in messages]
     user_text = last_user_message(message_list)
 
+    if is_crisis(user_text):
+        return CRISIS_REPLY
+    if not user_text.strip():
+        return DEFAULT_CONTENT
     if settings.llm_provider != "local":
-        return _remote_response(message_list)
+        return _remote_response(build_messages(message_list, protocol, emotional_state, next_action))
 
     return _local_response(user_text, protocol, emotional_state, next_action)
 

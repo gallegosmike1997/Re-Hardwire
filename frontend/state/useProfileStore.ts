@@ -10,7 +10,7 @@ import { config } from '@/lib/config';
 import { getStorage, setStorage } from '@/lib/storage';
 
 export interface UiPreferences {
-  theme: 'dark' | 'midnight';
+  theme: 'light' | 'dark' | 'midnight';
   reducedMotion: boolean;
   showSignals: boolean;
   sidebarCollapsed: boolean;

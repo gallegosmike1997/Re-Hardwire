@@ -4,3 +4,9 @@ pydantic
 python-dotenv
 httpx
 pytest
+sentence-transformers
+torch
+numpy
+transformers
+scikit-learn
+scipy

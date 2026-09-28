@@ -8,7 +8,12 @@
 import { create } from 'zustand';
 import { api, type HistoryEntry, type LLMMessage, type RouteResponse } from '@/lib/api';
 import { config } from '@/lib/config';
+import { streamConversation } from '@/lib/stream';
+import { useHistoryStore } from './useHistoryStore';
+import { useProtocolStore } from './useProtocolStore';
 import { getStorage, removeStorage, setStorage } from '@/lib/storage';
+
+let activeRequest: AbortController | null = null;
 
 export interface ChatState {
   messages: LLMMessage[];
@@ -19,6 +24,9 @@ export interface ChatState {
   error: string | null;
   lastRoute: RouteResponse | null;
 
+  stop: () => void;
+  autoRouting: boolean;
+  setAutoRouting: (enabled: boolean) => void;
   hydrate: () => void;
   setInput: (value: string) => void;
   clearError: () => void;
@@ -58,12 +66,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   error: null,
   lastRoute: null,
 
+  autoRouting: true,
+  setAutoRouting: (enabled) => {
+    setStorage(`${config.storage.uiPrefsKey}-autoRouting`, enabled);
+    set({ autoRouting: enabled });
+  },
+  stop: () => activeRequest?.abort(),
   hydrate: () => {
     if (get().isHydrated) return;
     const persisted = readPersisted();
+    const storedAutoRouting = getStorage<boolean>(`${config.storage.uiPrefsKey}-autoRouting`);
     set({
       messages: persisted?.messages ?? [],
       sessionId: persisted?.sessionId ?? get().sessionId,
+      ...(typeof storedAutoRouting === 'boolean' ? { autoRouting: storedAutoRouting } : {}),
       isHydrated: true,
     });
   },
@@ -73,6 +89,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   clearError: () => set({ error: null }),
 
   newSession: () => {
+    if (get().isSending) return;
+    useHistoryStore.getState().setActive(null);
     removeStorage(config.storage.conversationKey);
     set({
       messages: [],
@@ -96,36 +114,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
       sessionId: get().sessionId,
     });
 
-    // Route first so the coach reply is grounded in the current read.
-    const routeResult = await api.autoRoute({ userText: body });
-    const route = routeResult.success ? routeResult.data ?? null : null;
-
-    const reply = await api.streamLLM({
-      messages: transcript,
-      ...(route?.protocol ? { protocol: route.protocol } : {}),
-    });
-
-    if (!reply.success || !reply.data) {
-      set({
-        isSending: false,
-        error: reply.error ?? 'The coach did not respond.',
-        lastRoute: route,
+    const controller = new AbortController();
+    activeRequest = controller;
+    const timeout = setTimeout(() => controller.abort(), 180000);
+    let content = '';
+    const created_at = stamp();
+    try {
+      await streamConversation({
+        messages: transcript,
+        ...(!get().autoRouting && useProtocolStore.getState().selected
+          ? { protocol: useProtocolStore.getState().selected } : {}),
+      }, controller.signal, (delta) => {
+        content += delta;
+        set({ messages: [...transcript, { role: 'assistant', content, created_at }] });
+      }, (route) => set({ lastRoute: route }));
+    } catch (error) {
+      set({ error: controller.signal.aborted
+        ? 'Response stopped or timed out. Retry to regenerate it.'
+        : error instanceof Error ? error.message : 'The coach did not respond.' });
+    } finally {
+      clearTimeout(timeout);
+      activeRequest = null;
+      set({ isSending: false });
+      setStorage(config.storage.conversationKey, {
+        messages: get().messages, sessionId: get().sessionId,
       });
-      return;
     }
-
-    const assistantMessage: LLMMessage = {
-      role: 'assistant',
-      content: reply.data.content,
-      created_at: stamp(),
-    };
-    const next = [...transcript, assistantMessage];
-
-    set({ messages: next, isSending: false, error: null, lastRoute: route });
-    setStorage(config.storage.conversationKey, {
-      messages: next,
-      sessionId: get().sessionId,
-    });
   },
 
   retry: async () => {
@@ -134,27 +148,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
     if (!lastUser) return;
 
-    // Drop the trailing assistant stub, if any, before resending.
-    const trimmed =
-      messages.length && messages[messages.length - 1].role === 'assistant'
-        ? messages.slice(0, -1)
-        : messages;
-    set({ messages: trimmed });
+    const lastUserIndex = messages.map((m) => m.role).lastIndexOf('user');
+    set({ messages: messages.slice(0, lastUserIndex) });
     await get().send(lastUser.content);
   },
 
   persist: async () => {
     const { messages, sessionId, lastRoute } = get();
-    if (!messages.length) return;
-    await api.saveHistory({
+    if (!messages.length || get().isSending) return;
+    const response = await api.saveHistory({
       sessionId,
       messages,
       createdAt: stamp(),
       ...(lastRoute?.protocol ? { protocolUsed: lastRoute.protocol } : {}),
     });
+    if (!response.success) {
+      set({ error: response.error ?? 'Could not save session.' });
+      return;
+    }
+    await useHistoryStore.getState().refresh();
   },
 
   loadSession: (entry) => {
+    if (get().isSending) return;
     set({
       messages: entry.messages,
       sessionId: entry.sessionId,

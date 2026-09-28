@@ -1,5 +1,7 @@
 import os
-base = '/home/kalimike/Re-Hardwire'
+from pathlib import Path
+
+base = str(Path(__file__).resolve().parent)
 files = [
     'backend/app/main.py','backend/app/api/route.py','backend/app/api/llm.py','backend/app/api/tts.py','backend/app/api/history.py','backend/app/api/profile.py',
     'backend/app/core/routing/engine.py','backend/app/core/routing/models.py','backend/app/core/llm/client.py','backend/app/core/llm/prompts.py',

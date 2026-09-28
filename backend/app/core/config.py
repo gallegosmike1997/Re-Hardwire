@@ -49,7 +49,9 @@ class Settings:
 
     llm_provider = os.getenv("LLM_PROVIDER", "local")
     llm_model = os.getenv("LLM_MODEL", "re-hardwire-local")
-    llm_api_key = os.getenv("LLM_API_KEY", "")
+    llm_api_key = os.getenv("LLM_API_KEY", os.getenv("OPENAI_API_KEY", ""))
+    llm_base_url = os.getenv("LLM_BASE_URL", "")
+    llm_timeout = float(os.getenv("LLM_TIMEOUT", "20"))
     llm_temperature = float(os.getenv("LLM_TEMPERATURE", "0.7"))
     llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "1024"))
 

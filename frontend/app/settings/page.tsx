@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useProfileStore } from '@/state/useProfileStore';
 import { Card, Notice, StatTile, Toggle } from '@/components/ui';
+import { ThemeController } from '@/components/settings/ThemeController';
 
 /**
  * Preferences that live in the user profile on the backend and are mirrored to
@@ -18,6 +19,8 @@ export default function SettingsPage() {
 
   const updateProfile = useProfileStore((state) => state.updateProfile);
   const loadProfile = useProfileStore((state) => state.loadProfile);
+  const ui = useProfileStore((state) => state.ui);
+  const updateUi = useProfileStore((state) => state.updateUi);
 
   useEffect(() => {
     void loadProfile();
@@ -49,7 +52,7 @@ export default function SettingsPage() {
       {isSaving && <Notice tone="info">Saving…</Notice>}
 
       <div className="grid gap-3 sm:grid-cols-2">
-                <StatTile label="Theme" value={((prefs.theme as string) ?? 'dark')} icon="code" />
+        <ThemeController controls />
         <StatTile label="Permissions" value={`${permissions.length} granted`} icon="shield" tone="win" />
       </div>
 
@@ -75,6 +78,18 @@ export default function SettingsPage() {
             checked={Boolean(prefs.analyticsEnabled)}
             onChange={(next) => setPref('analyticsEnabled', next)}
             disabled={isSaving || !profile}
+          />
+          <Toggle
+            label="Reduce motion"
+            description="Disable animations across the app."
+            checked={ui.reducedMotion}
+            onChange={(next) => updateUi({ reducedMotion: next })}
+          />
+          <Toggle
+            label="Routing signals"
+            description="Show protocol chips under coach replies."
+            checked={ui.showSignals}
+            onChange={(next) => updateUi({ showSignals: next })}
           />
         </div>
       </Card>

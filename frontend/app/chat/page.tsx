@@ -2,6 +2,7 @@
 
 import { ChatComposer } from '@/components/chat/ChatComposer';
 import { ChatThread } from '@/components/chat/ChatThread';
+import { ConversationControls } from '@/components/chat/ConversationControls';
 import { RouteInspector } from '@/components/chat/RouteInspector';
 import { useChatStore } from '@/state/useChatStore';
 
@@ -25,10 +26,12 @@ export default function ChatPage() {
           <ChatComposer />
         </section>
         <aside aria-label="Suggested protocol">
+          <ConversationControls />
           <RouteInspector route={route} />
           <p className="mt-3 text-xs leading-relaxed text-slate-500">
             Routing is a keyword-based coaching suggestion, not a clinical
-            assessment. The default coach replies are scripted.
+            assessment. Replies come from the configured backend model, or a
+            scripted offline fallback.
           </p>
         </aside>
       </div>

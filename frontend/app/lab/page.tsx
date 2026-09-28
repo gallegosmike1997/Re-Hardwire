@@ -5,6 +5,7 @@ import { useProtocolStore } from '@/state/useProtocolStore';
 import { useSystemStore } from '@/state/useSystemStore';
 import { RouteInspector } from '@/components/chat/RouteInspector';
 import { Card, EmptyState, Icon, Notice, Progress } from '@/components/ui';
+import { SemanticRoutingPanel } from '@/components/chat/SemanticRoutingPanel';
 import { formatPercent } from '@/lib/format';
 
 const sampleInputs = [
@@ -92,6 +93,8 @@ export default function LabPage() {
 
         {error && <p className="mt-2 text-xs text-alarm">{error}</p>}
       </Card>
+
+      <SemanticRoutingPanel online={online} />
 
       <div className="grid items-start gap-4 xl:grid-cols-[1fr_300px]">
         <section>

@@ -33,6 +33,9 @@ export function ConversationList({ onSelect }: ConversationListProps) {
   const load = useHistoryStore((state) => state.load);
   const setActive = useHistoryStore((state) => state.setActive);
   const loadSession = useChatStore((state: ChatState) => state.loadSession);
+  const isSending = useChatStore((state) => state.isSending);
+  const remove = useHistoryStore((state) => state.remove);
+  const isDeleting = useHistoryStore((state) => state.isDeleting);
 
   useEffect(() => {
     void load();
@@ -76,6 +79,8 @@ export function ConversationList({ onSelect }: ConversationListProps) {
   }
 
   return (
+    <div>
+    {error && <p role="alert" className="mb-2 text-xs text-alarm">{error}</p>}
     <ul className="space-y-2">
       {entries.map((entry) => {
         const isActive = entry.id === activeId;
@@ -84,6 +89,7 @@ export function ConversationList({ onSelect }: ConversationListProps) {
             <button
               type="button"
               onClick={() => open(entry)}
+              disabled={isSending}
               aria-current={isActive ? 'true' : undefined}
               className={[
                 'hw-focus flex w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors',
@@ -107,9 +113,13 @@ export function ConversationList({ onSelect }: ConversationListProps) {
                 </span>
               </span>
             </button>
+            <Button size="sm" disabled={isSending || isDeleting} onClick={() => {
+              if (window.confirm('Delete this saved conversation?')) void remove(entry.id);
+            }}>Delete conversation</Button>
           </li>
         );
       })}
     </ul>
+    </div>
   );
 }

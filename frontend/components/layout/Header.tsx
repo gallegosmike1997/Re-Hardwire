@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
@@ -38,6 +39,10 @@ export function Header() {
         >
           <Icon name="menu" size={18} />
         </button>
+
+        <Link href="/" aria-label="Re-Hardwire home" className="hw-focus shrink-0 rounded-lg md:hidden">
+          <Image src="/logo.svg" alt="" width={32} height={32} priority />
+        </Link>
 
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-sm font-semibold tracking-tight text-slate-100">

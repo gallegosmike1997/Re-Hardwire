@@ -7,6 +7,7 @@ import { useChatStore } from '@/state/useChatStore';
 import { useProfileStore } from '@/state/useProfileStore';
 import { useProtocolStore } from '@/state/useProtocolStore';
 import { useSystemStore } from '@/state/useSystemStore';
+import { ThemeController } from '@/components/settings/ThemeController';
 
 /**
  * Application chrome.
@@ -39,6 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-full min-h-screen">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
+        <ThemeController />
         <Header />
         <main className="hw-scroll flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
           <div className="mx-auto w-full max-w-6xl animate-fade-up">{children}</div>

@@ -1,5 +1,7 @@
 import subprocess, os
-pages_dir = '/home/kalimike/Re-Hardwire/pages'
+from pathlib import Path
+
+pages_dir = str(Path(__file__).resolve().parent / 'pages')
 for i in range(1, 9):
     fp = os.path.join(pages_dir, f'page_{i:02d}.png')
     print(f'\n===== PAGE {i} =====')

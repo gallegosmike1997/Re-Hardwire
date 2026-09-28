@@ -1,6 +1,7 @@
 import os
+from pathlib import Path
 
-BASE = "/home/kalimike/Re-Hardwire/frontend"
+BASE = str(Path(__file__).resolve().parent)
 
 def w(path, content):
     full = os.path.join(BASE, path)

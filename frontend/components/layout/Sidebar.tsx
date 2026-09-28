@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { routes, getActiveRoute } from '@/lib/routing';
@@ -41,9 +42,9 @@ export function Sidebar() {
       ].join(' ')}
     >
       <div className="flex h-16 items-center gap-2.5 border-b border-edge px-4">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-signal-500/15 text-signal-400">
-          <Icon name="shield" size={17} />
-        </span>
+        <Link href="/" aria-label="Re-Hardwire home" className="hw-focus shrink-0 rounded-lg">
+          <Image src="/logo.svg" alt="" width={36} height={36} priority />
+        </Link>
         {!collapsed && (
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold tracking-tight text-slate-100">
