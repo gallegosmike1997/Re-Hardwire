@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from typing import List, Dict, Any
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.core.routing.advanced_config import normalize_weights, PROTOCOLS
 
 from fastapi import APIRouter, HTTPException, Query
@@ -17,13 +19,37 @@ from app.core.routing import (
 from app.services import analytics
 
 router = APIRouter(tags=["routing"])
+logger = logging.getLogger(__name__)
+
+
+def _limit_serialized_size(value: Any, limit: int, label: str) -> Any:
+    try:
+        size = len(json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8"))
+    except (TypeError, ValueError):
+        raise ValueError(f"{label} must contain valid JSON values") from None
+    if size > limit:
+        raise ValueError(f"{label} is too large")
+    return value
+
 
 # Enhanced request/response models
 class EnhancedRouteRequest(BaseModel):
-    user_text: str = Field(..., min_length=1, description="User input text")
-    user_context: Dict[str, Any] = Field(default_factory=dict, description="User context and preferences")
-    history: List[Dict[str, Any]] = Field(default_factory=list, description="Previous routing history")
-    weights: Dict[str, float] = Field(default_factory=dict, description="Routing weights override")
+    model_config = ConfigDict(extra="forbid")
+
+    user_text: str = Field(..., min_length=1, max_length=4000, description="User input text")
+    user_context: Dict[str, Any] = Field(default_factory=dict, max_length=20, description="User context and preferences")
+    history: List[Dict[str, Any]] = Field(default_factory=list, max_length=40, description="Previous routing history")
+    weights: Dict[str, float] = Field(default_factory=dict, max_length=4, description="Routing weights override")
+
+    @field_validator("user_context")
+    @classmethod
+    def bound_context(cls, value):
+        return _limit_serialized_size(value, 8192, "user_context")
+
+    @field_validator("history")
+    @classmethod
+    def bound_history(cls, value):
+        return _limit_serialized_size(value, 16384, "history")
 
     @field_validator("weights")
     @classmethod
@@ -32,9 +58,11 @@ class EnhancedRouteRequest(BaseModel):
 
 
 class FeedbackRequest(BaseModel):
-    protocol: str = Field(..., description="Protocol to provide feedback for")
+    model_config = ConfigDict(extra="forbid")
+
+    protocol: str = Field(..., max_length=20, description="Protocol to provide feedback for")
     success: bool = Field(..., description="Whether the routing was successful")
-    current_weights: Dict[str, float] = Field(default_factory=dict, description="Current routing weights")
+    current_weights: Dict[str, float] = Field(default_factory=dict, max_length=4, description="Current routing weights")
 
     @field_validator("current_weights")
     @classmethod
@@ -47,6 +75,18 @@ class FeedbackRequest(BaseModel):
         if value not in PROTOCOLS:
             raise ValueError("Unknown protocol")
         return value
+
+
+class AutoRouteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    user_text: str = Field(..., min_length=1, max_length=4000)
+    user_context: Dict[str, Any] = Field(default_factory=dict, max_length=20)
+
+    @field_validator("user_context")
+    @classmethod
+    def bound_context(cls, value):
+        return _limit_serialized_size(value, 8192, "user_context")
 
 
 
@@ -102,10 +142,10 @@ def enhanced_route(payload: EnhancedRouteRequest) -> Dict[str, Any]:
 
 # Auto-route convenience endpoint
 @router.post("/auto")
-def auto_route_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
+def auto_route_endpoint(payload: AutoRouteRequest) -> Dict[str, Any]:
     """Auto-route convenience endpoint for simple requests."""
-    user_text = payload.get("user_text", "").strip()
-    user_context = payload.get("user_context", {})
+    user_text = payload.user_text.strip()
+    user_context = payload.user_context
     
     if not user_text:
         raise HTTPException(status_code=422, detail="user_text must not be empty")
@@ -183,5 +223,6 @@ def enhanced_routing_health() -> Dict[str, Any]:
                 "confidence": test_result.confidence
             }
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Enhanced routing system error: {str(e)}")
+    except Exception:
+        logger.exception("Enhanced routing health check failed")
+        raise HTTPException(status_code=503, detail="Enhanced routing service is unavailable.") from None

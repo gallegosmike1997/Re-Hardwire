@@ -1,10 +1,10 @@
 """LLM conversation endpoints."""
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.llm.client import ProviderError, stream_llm_response
 from app.core.routing.engine import route_text
@@ -14,14 +14,29 @@ router = APIRouter(tags=["llm"])
 
 
 class LLMMessage(BaseModel):
-    role: str = "user"
-    content: str = ""
-    created_at: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
+
+    # Callers may provide conversation turns, but never their own system prompt.
+    role: Literal["user", "assistant"] = "user"
+    content: str = Field(default="", max_length=4000)
+    created_at: Optional[str] = Field(default=None, max_length=50)
 
 
 class LLMRequest(BaseModel):
-    messages: List[LLMMessage] = Field(default_factory=list)
-    protocol: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
+
+    messages: List[LLMMessage] = Field(default_factory=list, max_length=40)
+    protocol: Optional[str] = Field(default=None, max_length=100)
+
+
+def _latest_user_text(payload: LLMRequest) -> str:
+    """Require a fresh user turn before generating any assistant reply."""
+    if not payload.messages or payload.messages[-1].role != "user":
+        raise HTTPException(status_code=422, detail="The latest message must be from the user")
+    text = payload.messages[-1].content.strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="A nonempty user message is required")
+    return text
 
 
 class LLMResponse(BaseModel):
@@ -40,14 +55,9 @@ def generate(payload: LLMRequest) -> LLMResponse:
     The last user turn is routed first so the reply is grounded in the current
     protocol, emotional read and next action.
     """
-    last_user = next(
-        (message.content for message in reversed(payload.messages) if message.role == "user"),
-        "",
-    )
-    if not payload.messages:
-        raise HTTPException(status_code=422, detail="messages must not be empty")
+    last_user = _latest_user_text(payload)
 
-    decision = route_text(last_user or " ", payload.protocol)
+    decision = route_text(last_user, payload.protocol)
 
     try:
         content = stream_llm_response(
@@ -85,9 +95,7 @@ async def generate_stream(payload: LLMRequest):
     from fastapi.responses import StreamingResponse
     from app.core.llm.streaming import stream_reply
 
-    last_user = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
-    if not last_user.strip():
-        raise HTTPException(status_code=422, detail="A nonempty user message is required")
+    last_user = _latest_user_text(payload)
     decision = route_text(last_user, payload.protocol)
     route = {"protocol": decision.protocol, "confidence": decision.confidence,
              "tags": decision.tags, "emotionalState": decision.emotional_state,

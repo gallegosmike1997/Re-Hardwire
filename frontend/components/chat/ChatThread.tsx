@@ -19,6 +19,7 @@ const PROMPTS = [
  */
 export function ChatThread() {
   const messages = useChatStore((state) => state.messages);
+  const sessionId = useChatStore((state) => state.sessionId);
   const isSending = useChatStore((state) => state.isSending);
   const error = useChatStore((state) => state.error);
   const lastRoute = useChatStore((state) => state.lastRoute);
@@ -55,7 +56,7 @@ export function ChatThread() {
         <EmptyState
           icon="chat"
           title="No conversation yet"
-          description="Start with what the last few days have actually looked like. The engine routes your words to a protocol and picks the next action."
+          description="Type what is on your mind or choose a suggested starter to send it now. The coach replies once, then waits for your next message."
         />
         <div className="mx-auto grid max-w-lg gap-2 px-6 pb-8 sm:grid-cols-2">
           {PROMPTS.map((prompt) => (
@@ -85,6 +86,7 @@ export function ChatThread() {
           <ChatMessage
             key={`${message.created_at ?? index}-${index}`}
             message={message}
+            feedbackKey={`${sessionId}-${index}`}
             route={message.role === 'assistant' && index === lastAssistantIndex ? lastRoute : null}
           />
         ))}

@@ -124,11 +124,16 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+      timeoutId = setTimeout(() => controller.abort(), this.timeout);
       const response = await fetch(url, {
         ...options,
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+        referrerPolicy: 'no-referrer',
         headers: { 'Content-Type': 'application/json', ...options.headers },
         signal: controller.signal,
       });
@@ -137,6 +142,7 @@ class ApiClient {
       const data = await response.json().catch(() => null);
       return { success: true, data };
     } catch (error: unknown) {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
       const err = error as Error;
       if (err.name === 'AbortError') return { success: false, error: 'Request timed out' };
       return { success: false, error: err.message || 'Unknown error' };
@@ -177,7 +183,7 @@ class ApiClient {
 
   async getHistory(sessionId?: string): Promise<ApiResponse<HistoryEntry[]>> {
     const endpoint = sessionId
-      ? `${config.api.endpoints.history}?sessionId=${sessionId}`
+      ? `${config.api.endpoints.history}?sessionId=${encodeURIComponent(sessionId)}`
       : config.api.endpoints.history;
     return this.get<HistoryEntry[]>(endpoint);
   }

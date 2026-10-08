@@ -44,7 +44,9 @@ export default function SuccessPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/history', { cache: 'no-store' });
+      const response = await fetch('/api/history', {
+        cache: 'no-store', credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer',
+      });
       if (!response.ok) throw new Error(`history request failed (${response.status})`);
       const list = (await response.json()) as HistoryEntry[];
       const local = getStorage<HistoryEntry[]>(`${config.storage.conversationKey}-history`) ?? [];

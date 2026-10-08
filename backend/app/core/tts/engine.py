@@ -6,8 +6,10 @@ Swap :func:`synthesize` for a real voice backend when one is chosen.
 """
 from __future__ import annotations
 
-import hashlib
 import math
+import re
+import secrets
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -19,8 +21,9 @@ from ..routing import engine as routing_engine
 #: animate even for a one-word utterance.
 MIN_DURATION = 0.8
 
-#: Cached placeholder payload written once per process.
-_WRITTEN: set[Path] = set()
+#: Keep the local placeholder cache bounded even if a caller sends many requests.
+MAX_AUDIO_FILES = 100
+_AUDIO_LOCK = threading.Lock()
 
 
 def auto_route(user_text: str) -> dict:
@@ -41,9 +44,9 @@ def estimate_duration(text: str, speed: float = 1.0) -> float:
     return round(max(MIN_DURATION, (minutes * 60.0) / safe_speed), 2)
 
 
-def _audio_filename(text: str, voice: str, speed: float) -> str:
-    digest = hashlib.sha1(f"{voice}|{speed}|{text}".encode("utf-8")).hexdigest()
-    return f"{digest[:16]}.wav"
+def _audio_filename() -> str:
+    """Generate an opaque name that does not reveal or fingerprint spoken text."""
+    return f"{secrets.token_hex(16)}.wav"
 
 
 def _write_placeholder(path: Path, duration: float) -> None:
@@ -52,8 +55,7 @@ def _write_placeholder(path: Path, duration: float) -> None:
     The header is real so browsers and audio tools accept the file even though
     every sample is zero.
     """
-    if path in _WRITTEN or path.exists():
-        _WRITTEN.add(path)
+    if path.exists():
         return
 
     sample_rate = 8000
@@ -80,7 +82,20 @@ def _write_placeholder(path: Path, duration: float) -> None:
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(header + bytes([128] * data_size))
-    _WRITTEN.add(path)
+
+
+def _prune_audio_files(preserve: Path) -> None:
+    """Keep only the newest generated placeholder audio files."""
+    generated = [
+        path for path in settings.audio_dir.iterdir()
+        if path.is_file() and re.fullmatch(r"[0-9a-f]{32}\.wav", path.name)
+    ]
+    generated.sort(key=lambda path: (path == preserve, path.stat().st_mtime_ns), reverse=True)
+    for expired in generated[MAX_AUDIO_FILES:]:
+        try:
+            expired.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def synthesize(
@@ -97,8 +112,10 @@ def synthesize(
     selected_speed = speed if speed and speed > 0 else settings.tts_speed
     duration = estimate_duration(text, selected_speed)
 
-    target = settings.audio_dir / _audio_filename(text, selected_voice, selected_speed)
-    _write_placeholder(target, duration)
+    target = settings.audio_dir / _audio_filename()
+    with _AUDIO_LOCK:
+        _write_placeholder(target, duration)
+        _prune_audio_files(target)
 
     return {
         "audioUrl": f"/audio/{target.name}",

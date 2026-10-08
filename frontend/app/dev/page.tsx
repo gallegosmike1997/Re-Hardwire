@@ -26,7 +26,12 @@ export default function DevPage() {
     setChecking(true);
     setError(null);
     try {
-      const [healthRes, indexRes] = await Promise.all([fetch('/health'), fetch('/api')]);
+      const requestOptions: RequestInit = {
+        cache: 'no-store', credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer',
+      };
+      const [healthRes, indexRes] = await Promise.all([
+        fetch('/health', requestOptions), fetch('/api', requestOptions),
+      ]);
       if (!healthRes.ok || !indexRes.ok) throw new Error('backend not responding');
       setHealth((await healthRes.json()) as HealthBody);
       setIndex((await indexRes.json()) as ApiIndexBody);

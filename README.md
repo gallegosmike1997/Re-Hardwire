@@ -50,7 +50,7 @@ uvicorn app.main:app --reload
 
 Set `NEXT_PUBLIC_API_BASE_URL` when building the frontend if the API is hosted somewhere other than `http://localhost:8000`. This is a public URL setting; never put a provider key in a `NEXT_PUBLIC_*` variable or frontend source.
 
-The backend currently stores profile/history data in shared JSON files and does not provide production user authentication or per-user data isolation. Keep it on a trusted development machine. Do not expose it to the public internet or use it for real users until authentication, authorization, per-user storage, secure deployment configuration, and privacy controls are implemented and reviewed.
+The backend currently stores profile/history data in shared JSON files and does not provide production user authentication or per-user data isolation. It refuses to start when `APP_ENV=production` is set. Keep it on a trusted development machine. Do not expose it to the public internet or use it for real users until authentication, authorization, per-user storage, secure deployment configuration, and privacy controls are implemented and reviewed.
 
 ## Offline behavior
 

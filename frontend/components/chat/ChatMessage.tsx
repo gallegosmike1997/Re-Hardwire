@@ -7,15 +7,18 @@ import { useProfileStore } from '@/state/useProfileStore';
 import { Badge, Icon, toneForAction, toneForState } from '@/components/ui';
 import type { LLMMessage } from '@/lib/api';
 import type { RouteResponse } from '@/lib/api';
+import { chooseSpeechVoice, getSpeechLanguage, getSpeechRate } from '@/lib/speech';
+import { useFeedbackStore, type ReplyFeedbackReason } from '@/state/useFeedbackStore';
 
 export interface ChatMessageProps {
   message: LLMMessage;
   /** Routing decision attached to the assistant turn that followed it. */
   route?: RouteResponse | null;
   isStreaming?: boolean;
+  feedbackKey?: string;
 }
 
-export function ChatMessage({ message, route, isStreaming = false }: ChatMessageProps) {
+export function ChatMessage({ message, route, isStreaming = false, feedbackKey }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const isOfflineReply = !isUser && message.content.startsWith('OFFLINE CHECK-IN\n\n');
   const visibleContent = isOfflineReply ? message.content.slice('OFFLINE CHECK-IN\n\n'.length) : message.content;
@@ -23,12 +26,17 @@ export function ChatMessage({ message, route, isStreaming = false }: ChatMessage
   const [speaking, setSpeaking] = useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
 
   const profile = useProfileStore((state) => state.profile);
+  const feedback = useFeedbackStore((state) => feedbackKey ? state.entries[feedbackKey] : undefined);
+  const hydrateFeedback = useFeedbackStore((state) => state.hydrate);
+  const rateReply = useFeedbackStore((state) => state.rate);
+  const [showFeedbackReason, setShowFeedbackReason] = useState(false);
   const enabled = Boolean(profile?.preferences.ttsEnabled && profile.permissions.includes('tts'));
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const [supported, setSupported] = useState(false);
   // Browser capability detection must run client-side to keep server rendering stable.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setSupported('speechSynthesis' in window); }, []);
+  useEffect(() => { hydrateFeedback(); }, [hydrateFeedback]);
   useEffect(() => {
     return () => {
       if (utteranceRef.current) {
@@ -38,13 +46,15 @@ export function ChatMessage({ message, route, isStreaming = false }: ChatMessage
       }
     };
   }, []);
+  const voiceLanguage = profile?.preferences.ttsLanguage ?? profile?.preferences.voiceLanguage;
+  const voiceURI = profile?.preferences.ttsVoice ?? profile?.preferences.voiceName;
   useEffect(() => {
-    if (!enabled && utteranceRef.current) {
+    if (utteranceRef.current && !enabled) {
       window.speechSynthesis?.cancel();
       utteranceRef.current = null;
       setSpeaking('idle');
     }
-  }, [enabled]);
+  }, [enabled, voiceLanguage, voiceURI]);
 
   const speak = () => {
     if (!enabled || !supported || isStreaming) return;
@@ -56,9 +66,14 @@ export function ChatMessage({ message, route, isStreaming = false }: ChatMessage
     }
     try {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(message.content);
-      utterance.lang = typeof profile?.preferences.voiceLanguage === 'string'
-        ? profile.preferences.voiceLanguage : navigator.language;
+      const utterance = new SpeechSynthesisUtterance(visibleContent);
+      utterance.lang = getSpeechLanguage(voiceLanguage, navigator.language);
+      utterance.voice = chooseSpeechVoice(
+        window.speechSynthesis.getVoices(),
+        utterance.lang,
+        typeof voiceURI === 'string' ? voiceURI : undefined,
+      ) ?? null;
+      utterance.rate = getSpeechRate(profile?.preferences.ttsRate);
       utteranceRef.current = utterance;
       utterance.onstart = () => setSpeaking('playing');
       utterance.onend = () => { utteranceRef.current = null; setSpeaking('idle'); };
@@ -119,16 +134,55 @@ export function ChatMessage({ message, route, isStreaming = false }: ChatMessage
         </div>
 
         {!isUser && (
-          <button
-            type="button"
-            onClick={() => void speak()}
-            disabled={!enabled || !supported || isStreaming}
-            title={!enabled ? 'Enable TTS responses and its capability in Settings' : !supported ? 'Speech playback is unsupported in this browser' : 'Read this reply aloud'}
-            className="hw-focus mt-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-500 transition-colors hover:text-signal-300 disabled:opacity-60"
-          >
-            {speaking === 'loading' || speaking === 'playing' ? 'Stop speaking' : 'Speak'}
-            {speaking === 'error' && <span role="alert" className="text-alarm">Speech playback unavailable. Check browser voices and audio settings.</span>}
-          </button>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <button
+              type="button"
+              onClick={() => void speak()}
+              disabled={!enabled || !supported || isStreaming}
+              title={!enabled ? 'Enable TTS responses and its capability in Settings' : !supported ? 'Speech playback is unsupported in this browser' : 'Read this reply aloud'}
+              className="hw-focus inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-500 transition-colors hover:text-signal-300 disabled:opacity-60"
+            >
+              {speaking === 'loading' || speaking === 'playing' ? 'Stop speaking' : 'Speak'}
+              {speaking === 'error' && <span role="alert" className="text-alarm">Speech playback unavailable. Check browser voices and audio settings.</span>}
+            </button>
+            {!isStreaming && feedbackKey && (
+              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Rate this reply; feedback stays on this device">
+                <span className="text-[10px] text-slate-600">Helpful?</span>
+                <button
+                  type="button"
+                  aria-pressed={feedback?.rating === 'helpful'}
+                  onClick={() => { rateReply(feedbackKey, 'helpful'); setShowFeedbackReason(false); }}
+                  className="hw-focus rounded px-1.5 py-1 text-[10px] text-slate-500 hover:text-win aria-pressed:text-win"
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={feedback?.rating === 'not_helpful'}
+                  onClick={() => { rateReply(feedbackKey, 'not_helpful', feedback?.reason); setShowFeedbackReason(true); }}
+                  className="hw-focus rounded px-1.5 py-1 text-[10px] text-slate-500 hover:text-warmth aria-pressed:text-warmth"
+                >
+                  Not quite
+                </button>
+                {showFeedbackReason && feedback?.rating === 'not_helpful' && (
+                  <label className="flex items-center gap-2 text-[10px] text-slate-500">
+                    What missed the mark?
+                    <select
+                      value={feedback.reason ?? ''}
+                      onChange={(event) => rateReply(feedbackKey, 'not_helpful', event.target.value as ReplyFeedbackReason)}
+                      className="hw-focus rounded border border-edge bg-panel px-2 py-1 text-[10px] text-slate-300"
+                    >
+                      <option value="">Choose a reason (optional)</option>
+                      <option value="too_long">Too long</option>
+                      <option value="felt_off">Felt off</option>
+                      <option value="not_relevant">Did not fit what I said</option>
+                      <option value="other">Something else</option>
+                    </select>
+                  </label>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {!isUser && route && showSignals && (

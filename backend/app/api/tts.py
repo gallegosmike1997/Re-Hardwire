@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.tts.engine import pace_label, synthesize
 from app.services import analytics
@@ -13,9 +13,11 @@ router = APIRouter(tags=["tts"])
 
 
 class TTSRequest(BaseModel):
-    text: str
-    voice: Optional[str] = None
-    speed: Optional[float] = None
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(..., min_length=1, max_length=4000)
+    voice: Optional[str] = Field(default=None, max_length=100)
+    speed: Optional[float] = Field(default=None, ge=0.5, le=2.0)
 
 
 class TTSResponse(BaseModel):

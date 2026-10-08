@@ -1,7 +1,7 @@
 """Conversation history endpoints."""
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,24 +13,26 @@ router = APIRouter(tags=["history"])
 
 
 class StoredMessage(BaseModel):
-    role: str = "user"
-    content: str = ""
-    created_at: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"] = "user"
+    content: str = Field(default="", max_length=8000)
+    created_at: Optional[str] = Field(default=None, max_length=50)
 
 
 class HistoryCreate(BaseModel):
     """Body for ``POST /api/history`` - mirrors ``Omit<HistoryEntry, 'id'>``."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    session_id: Optional[str] = Field(default=None, alias="sessionId")
-    messages: List[StoredMessage] = Field(default_factory=list)
-    created_at: Optional[str] = Field(default=None, alias="createdAt")
-    protocol_used: Optional[str] = Field(default=None, alias="protocolUsed")
+    session_id: Optional[str] = Field(default=None, alias="sessionId", max_length=100)
+    messages: List[StoredMessage] = Field(default_factory=list, max_length=400)
+    created_at: Optional[str] = Field(default=None, alias="createdAt", max_length=50)
+    protocol_used: Optional[str] = Field(default=None, alias="protocolUsed", max_length=100)
 
 
 @router.get("")
-def list_sessions(sessionId: Optional[str] = Query(default=None)) -> List[dict]:
+def list_sessions(sessionId: Optional[str] = Query(default=None, max_length=100)) -> List[dict]:
     """List stored sessions, newest first, optionally filtered by sessionId."""
     return store.list_history(sessionId)
 

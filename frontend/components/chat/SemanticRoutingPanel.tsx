@@ -37,6 +37,8 @@ export function SemanticRoutingPanel({ online }: { online: boolean }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_text: text, weights }),
+        cache: 'no-store', credentials: 'omit', redirect: 'error',
+        referrerPolicy: 'no-referrer',
       });
       if (!response.ok) throw new Error(`Routing failed (HTTP ${response.status}).`);
       setResult((await response.json()) as SemanticRouteResult);

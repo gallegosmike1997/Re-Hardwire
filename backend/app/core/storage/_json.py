@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any, Iterable
@@ -30,13 +31,25 @@ def read_json(path: Path, default: Any) -> Any:
 def write_json(path: Path, payload: Any) -> None:
     """Atomically serialise ``payload`` to ``path``."""
     with _LOCK:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp = path.with_suffix(path.suffix + ".tmp")
-        with temp.open("w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2, ensure_ascii=False)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temp, path)
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+        descriptor, temp_name = tempfile.mkstemp(
+            prefix=f".{path.name}.", suffix=".tmp", dir=path.parent,
+        )
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2, ensure_ascii=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp_name, path)
+            if os.name != "nt":
+                os.chmod(path, 0o600)
+        except Exception:
+            try:
+                os.unlink(temp_name)
+            except FileNotFoundError:
+                pass
+            raise
 
 
 def replace_list(path: Path, records: Iterable[Any]) -> None:

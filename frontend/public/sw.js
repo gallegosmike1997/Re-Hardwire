@@ -1,6 +1,14 @@
-const CACHE_NAME = 're-hardwire-shell-v2';
+const CACHE_NAME = 're-hardwire-shell-v3';
 const CORE_PAGES = ['/', '/now/', '/tools/', '/support-plan/', '/chat/', '/protocol/', '/success/', '/account/', '/settings/'];
 const APP_ASSETS = ['/offline.html', '/manifest.webmanifest', '/logo.svg', '/practice-manifest.json'];
+
+function isCacheable(response) {
+  if (!response.ok || response.headers.has('set-cookie')) return false;
+  const cacheControl = response.headers.get('cache-control') || '';
+  const vary = response.headers.get('vary') || '';
+  return !/\b(private|no-store|no-cache)\b/i.test(cacheControl)
+    && !/\b(cookie|authorization)\b/i.test(vary);
+}
 
 async function cacheStatus() {
   const cache = await caches.open(CACHE_NAME);
@@ -27,7 +35,7 @@ self.addEventListener('message', (event) => {
         ...CORE_PAGES.map((path) => cacheAppPage(cache, path)),
         ...APP_ASSETS.map(async (path) => {
           const response = await fetch(path);
-          if (response.ok) await cache.put(path, response);
+          if (isCacheable(response)) await cache.put(path, response);
           else throw new Error(`Could not cache ${path}`);
         }),
       ]);
@@ -38,7 +46,7 @@ self.addEventListener('message', (event) => {
 
 async function cacheAppPage(cache, path) {
   const response = await fetch(path);
-  if (!response.ok) return;
+  if (!isCacheable(response)) return;
   await cache.put(path, response.clone());
   if (path.length > 1 && path.endsWith('/')) {
     await cache.put(path.slice(0, -1), response.clone());
@@ -54,7 +62,7 @@ async function cacheAppPage(cache, path) {
   }
   await Promise.allSettled([...assets].map(async (asset) => {
     const assetResponse = await fetch(asset);
-    if (assetResponse.ok) await cache.put(asset, assetResponse);
+    if (isCacheable(assetResponse)) await cache.put(asset, assetResponse);
   }));
 }
 
@@ -64,7 +72,10 @@ self.addEventListener('install', (event) => {
       .then(async (cache) => {
         await Promise.allSettled([
           ...CORE_PAGES.map((url) => cacheAppPage(cache, url)),
-          ...APP_ASSETS.map((url) => cache.add(url)),
+          ...APP_ASSETS.map(async (url) => {
+            const response = await fetch(url);
+            if (isCacheable(response)) await cache.put(url, response);
+          }),
         ]);
       })
       .then(() => self.skipWaiting()),
@@ -91,8 +102,10 @@ self.addEventListener('fetch', (event) => {
       const cache = await caches.open(CACHE_NAME);
       try {
         const response = await fetch(request);
-        if (response.ok && response.headers.get('content-type')?.includes('text/html')) {
+        if (isCacheable(response) && response.headers.get('content-type')?.includes('text/html')) {
           await cache.put(request, response.clone());
+        } else {
+          await cache.delete(request);
         }
         return response;
       } catch {
@@ -110,7 +123,7 @@ self.addEventListener('fetch', (event) => {
       if (cached) return cached;
       try {
         const response = await fetch(request);
-        if (response.ok) await cache.put(request, response.clone());
+        if (isCacheable(response)) await cache.put(request, response.clone());
         return response;
       } catch {
         return new Response('', { status: 504, statusText: 'Offline' });

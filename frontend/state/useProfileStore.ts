@@ -11,6 +11,7 @@ import { getStorage, removeStorage, setStorage } from '@/lib/storage';
 
 export interface UiPreferences {
   theme: 'light' | 'dark' | 'midnight';
+  environment: 'forest' | 'sky' | 'dusk' | 'studio';
   textSize: 'regular' | 'large' | 'largest';
   reducedMotion: boolean;
   quietMode: boolean;
@@ -20,6 +21,7 @@ export interface UiPreferences {
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   theme: 'dark',
+  environment: 'forest',
   textSize: 'regular',
   reducedMotion: false,
   quietMode: false,

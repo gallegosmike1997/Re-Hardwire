@@ -37,43 +37,13 @@ REFLECTIONS = {
     "mixed": "There is real drive in this, and real weight sitting on top of it.",
 }
 
-ACTION_BODIES = {
-    "ground_and_reset": (
-        "Before anything else gets solved, we bring the volume down. Sit with "
-        "both feet flat, breathe in for four, out for six, and do that six "
-        "times. Nothing gets decided until that is done."
-    ),
-    "reduce_load": (
-        "The move now is subtraction, not effort. Pick one commitment this "
-        "week that you can move, shorten or cancel - and do it before you feel "
-        "ready to."
-    ),
-    "continue_protocol": (
-        "Keep the reps boring and repeatable. Same time, same shape, small "
-        "enough that a bad day cannot break it. That consistency is what "
-        "rebuilds the baseline."
-    ),
-    "log_micro_win": (
-        "You are moving, and movement you do not record disappears. Write down "
-        "one thing that went right today, however small, in one sentence."
-    ),
-    "reflect_and_reframe": (
-        "There is something here you are circling rather than touching. Name it "
-        "in one plain sentence, without softening it, and then we can work on it."
-    ),
-    "escalate_support": (
-        "This is not a load to carry alone. Think of one specific person and "
-        "send them a message today that says something true about how you are."
-    ),
-}
-
-STEPS = {
-    "ground_and_reset": "Right now: six slow breaths, four in and six out.",
-    "reduce_load": "Right now: name the one thing you are dropping this week.",
-    "continue_protocol": "Right now: put the next rep in your calendar.",
-    "log_micro_win": "Right now: write the one-line win down.",
-    "reflect_and_reframe": "Right now: write the sentence you have been avoiding.",
-    "escalate_support": "Right now: send one message to one person.",
+FOLLOW_UPS = {
+    "ground_and_reset": "Would you try six slow rounds: breathe in for four, then out for six?",
+    "reduce_load": "What is one commitment you could move or drop this week?",
+    "continue_protocol": "What is the smallest version of your next practice?",
+    "log_micro_win": "What went a little better today, even if it was small?",
+    "reflect_and_reframe": "What feels hardest about making that call?",
+    "escalate_support": "Who is one person you could let in on how things are going?",
 }
 
 DEFAULT_CONTENT = (
@@ -104,14 +74,12 @@ def _local_response(
         emotional_state or "",
         "Thanks for laying that out - I hear you.",
     )
-    body = ACTION_BODIES.get(next_action or "", ACTION_BODIES["continue_protocol"])
-    step = STEPS.get(next_action or "", STEPS["continue_protocol"])
-
-    parts = [reflection, body]
+    follow_up = FOLLOW_UPS.get(next_action or "", FOLLOW_UPS["continue_protocol"])
+    if next_action == "reflect_and_reframe" and "call" not in user_text.lower():
+        follow_up = "What feels hardest about taking that step?"
     if protocol:
-        parts.append(f"We are working the {protocol} protocol.")
-    parts.append(step)
-    return "\n\n".join(parts)
+        follow_up = f"With {protocol}, {follow_up[0].lower()}{follow_up[1:]}"
+    return f"{reflection} {follow_up}"
 
 
 class ProviderError(RuntimeError):

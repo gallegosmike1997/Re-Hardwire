@@ -31,6 +31,7 @@ def _env_list(name: str, default: str) -> list[str]:
 class Settings:
     """Runtime settings for the Re-Hardwire backend."""
 
+    app_env = os.getenv("APP_ENV", "development").strip().lower()
     app_name = "Re-Hardwire Backend"
     description = "Routing Engine • LLM Pipeline • TTS • Success Tracker"
     version = "1.0.0"
@@ -63,9 +64,15 @@ class Settings:
     tts_speed = float(os.getenv("TTS_SPEED", "1.0"))
     tts_words_per_minute = int(os.getenv("TTS_WORDS_PER_MINUTE", "150"))
 
-    # Avoid a shared hard-coded signing key. Configure a stable value before
-    # using signed tokens across restarts or multiple backend processes.
-    auth_secret = os.getenv("AUTH_SECRET") or secrets.token_urlsafe(32)
+    # Never fall back to an example or weak signing key. A random development
+    # secret is safe for local use; a real auth deployment must set a stable
+    # secret through its secret manager.
+    _auth_secret = os.getenv("AUTH_SECRET", "").strip()
+    auth_secret = (
+        _auth_secret
+        if len(_auth_secret) >= 32 and _auth_secret.lower() not in {"replace-with-a-long-random-secret", "changeme"}
+        else secrets.token_urlsafe(32)
+    )
     auth_token_ttl = int(os.getenv("AUTH_TOKEN_TTL", "86400"))
 
     default_permissions = _env_list(
@@ -75,8 +82,14 @@ class Settings:
 
     def ensure_dirs(self) -> None:
         """Create the data directories if they do not exist yet."""
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.audio_dir.mkdir(parents=True, exist_ok=True)
+        self.data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.audio_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if os.name != "nt":
+            os.chmod(self.data_dir, 0o700)
+            os.chmod(self.audio_dir, 0o700)
+            for data_file in (self.history_file, self.profile_file, self.analytics_file):
+                if data_file.exists():
+                    os.chmod(data_file, 0o600)
 
 
 settings = Settings()

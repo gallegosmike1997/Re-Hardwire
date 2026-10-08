@@ -26,6 +26,8 @@ For every practice, keep a record of its intended use, source passage, adaptatio
 
 Label independent self-help clearly and keep it distinct from tools intended to accompany treatment with a provider. Do not use diagnoses, symptom scores, or routing labels as clinical assessments. Do not claim the app is therapy, treatment, clinically validated, or medically accepted without evidence and the appropriate review.
 
+Use the [external review packet](CLINICAL_REVIEW_PACKET.md) to scope a future independent content review. It records review status only after a qualified reviewer completes it; creating the packet does not constitute review or endorsement.
+
 ## Change process
 
 1. Link the exact primary source and record the date it was checked.

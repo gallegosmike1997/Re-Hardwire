@@ -10,6 +10,8 @@ Re-Hardwire's guided practice library, local profile, interface preferences, and
 
 Static hosting prices and limits vary by provider. The static app has no required hosted model or paid service for its guided tools. Chat and cross-device profile/history sync need a running backend; connect one with `NEXT_PUBLIC_API_BASE_URL` at build time. Never put provider API secrets in that public frontend setting.
 
+The backend is not ready for public deployment: it stores profiles and history in shared JSON files and has no enforced user authentication or per-user authorization. It fails to start with `APP_ENV=production` until those controls are implemented. A static frontend can be hosted independently, but do not connect it to an internet-accessible instance of this prototype.
+
 ## Native app bundle
 
 From `frontend/`, run `npm ci`, then `npm run build:capacitor`. The static assets are written to `frontend/out/`; Capacitor can bundle those assets for Android or iOS so the guided library works without a first web visit. Add the platform once with `npx cap add android` or `npx cap add ios`, then run `npx cap sync` when the web bundle changes.

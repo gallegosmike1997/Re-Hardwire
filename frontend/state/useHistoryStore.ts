@@ -18,7 +18,6 @@ export interface HistoryState {
 
   load: () => Promise<void>;
   refresh: () => Promise<void>;
-  archiveLocal: (entry: Omit<HistoryEntry, 'id'>) => void;
   remove: (id: string) => Promise<void>;
   setActive: (id: string | null) => void;
   /** Every user turn kept across all stored sessions, newest first. */
@@ -84,21 +83,6 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   refresh: async () => {
     set({ isLoading: false });
     await get().load();
-  },
-
-  archiveLocal: (entry) => {
-    const cache = readCache();
-    const existing = cache.find((item) => item.sessionId === entry.sessionId);
-    if (existing && !existing.id.startsWith('local_')) return;
-
-    const saved: HistoryEntry = {
-      ...entry,
-      id: existing?.id ?? `local_${entry.sessionId}`,
-    };
-    const entries = [saved, ...get().entries.filter((item) => item.sessionId !== entry.sessionId)]
-      .sort(byNewest);
-    setStorage(CACHE_KEY, [saved, ...cache.filter((item) => item.sessionId !== entry.sessionId)]);
-    set({ entries });
   },
 
   remove: async (id) => {

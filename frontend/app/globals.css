@@ -95,6 +95,53 @@
   }
 }
 
+/* Optional atmosphere: slow color drift adds depth without drawing focus. */
+.app-shell {
+  isolation: isolate;
+}
+
+.app-atmosphere {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.78;
+  background:
+    radial-gradient(38rem 32rem at 12% 12%, rgba(74, 150, 116, 0.13), transparent 72%),
+    radial-gradient(34rem 30rem at 88% 16%, rgba(45, 143, 151, 0.12), transparent 72%);
+  animation: ambient-drift 38s ease-in-out infinite alternate;
+}
+
+html[data-environment='sky'] .app-atmosphere {
+  background:
+    radial-gradient(40rem 34rem at 10% 10%, rgba(56, 145, 190, 0.16), transparent 72%),
+    radial-gradient(34rem 30rem at 90% 18%, rgba(105, 167, 196, 0.12), transparent 72%);
+}
+
+html[data-environment='dusk'] .app-atmosphere {
+  background:
+    radial-gradient(40rem 34rem at 10% 10%, rgba(139, 92, 170, 0.15), transparent 72%),
+    radial-gradient(34rem 30rem at 90% 18%, rgba(202, 127, 109, 0.10), transparent 72%);
+}
+
+html[data-environment='studio'] .app-atmosphere,
+html.quiet-mode .app-atmosphere {
+  display: none;
+}
+
+html[data-environment='studio'] body {
+  background-image: none;
+}
+
+@keyframes ambient-drift {
+  from { transform: translate3d(-0.6%, -0.4%, 0) scale(1); opacity: 0.66; }
+  to { transform: translate3d(0.8%, 0.6%, 0) scale(1.035); opacity: 0.9; }
+}
+
+html.motion-off .app-atmosphere {
+  animation: none;
+}
+
 html[data-text-size='large'] {
   font-size: 18px;
 }

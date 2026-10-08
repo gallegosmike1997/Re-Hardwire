@@ -131,10 +131,10 @@ class SignalBundle(BaseModel):
 class RouteRequest(BaseModel):
     """Incoming routing request. Mirrors ``RouteRequest`` in ``lib/api.ts``."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    user_text: str = Field(alias="userText", min_length=1)
-    protocol: Optional[str] = None
+    user_text: str = Field(alias="userText", min_length=1, max_length=4000)
+    protocol: Optional[str] = Field(default=None, max_length=100)
 
 
 class RouteResult(BaseModel):

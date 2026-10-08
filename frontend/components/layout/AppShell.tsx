@@ -75,16 +75,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [check, hydrateChat, hydrateProfile, hydrateProtocol, hydratePractices, loadCatalog, loadProfile]);
 
   return (
-    <div className="flex h-full min-h-screen">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <ThemeController />
-        <Header />
-        <ConnectionBanner />
-        <main className="hw-scroll flex-1 overflow-y-auto px-4 pt-6 pb-28 sm:px-6 md:pb-6 lg:px-8">
-          <div className="mx-auto w-full max-w-6xl animate-fade-up">{children}</div>
-        </main>
-        <MobileNav />
+    <div className="app-shell flex h-full min-h-screen">
+      <div aria-hidden="true" className="app-atmosphere" />
+      <div className="relative z-10 flex min-h-screen w-full">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <ThemeController />
+          <Header />
+          <ConnectionBanner />
+          <main className="hw-scroll flex-1 overflow-y-auto px-4 pt-6 pb-28 sm:px-6 md:pb-6 lg:px-8">
+            <div className="mx-auto w-full max-w-6xl animate-fade-up">{children}</div>
+          </main>
+          <MobileNav />
+        </div>
       </div>
     </div>
   );

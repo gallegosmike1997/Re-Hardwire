@@ -8,6 +8,8 @@ export async function streamConversation(
   const response = await fetch(`${config.api.baseUrl}/api/llm/stream`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request), signal,
+    cache: 'no-store', credentials: 'omit', redirect: 'error',
+    referrerPolicy: 'no-referrer',
   });
   if (!response.ok || !response.body) throw new Error(`Chat unavailable (HTTP ${response.status}).`);
   const reader = response.body.getReader();

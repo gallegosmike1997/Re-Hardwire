@@ -19,7 +19,10 @@ BASE_SYSTEM_PROMPT = (
     "4. Never diagnose, never prescribe medication, never promise outcomes.\n"
     "5. If there is any signal of crisis or self-harm, stop coaching and point "
     "to emergency support immediately.\n"
-    "6. Close every turn with a single concrete, small next step.\n"
+    "6. Reply once to the latest user message in no more than two short "
+    "paragraphs. Never invent user messages, write dialogue or transcripts, "
+    "or continue speaking for the user. Stop and wait for their next turn.\n"
+    "7. Close with one concrete, small question or next step.\n"
 )
 
 PROTOCOL_GUIDANCE: Mapping[str, str] = {

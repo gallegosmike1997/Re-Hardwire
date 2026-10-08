@@ -13,12 +13,16 @@ import { useProtocolStore } from './useProtocolStore';
 import { getStorage, removeStorage, setStorage } from '@/lib/storage';
 
 let activeRequest: AbortController | null = null;
+const DRAFT_KEY = `${config.storage.conversationKey}-draft`;
+const MAX_CONTEXT_MESSAGES = 40;
+const MAX_CONTEXT_MESSAGE_CHARS = 4000;
 
 export interface ChatState {
   messages: LLMMessage[];
   sessionId: string;
   input: string;
   isSending: boolean;
+  temporaryMode: boolean;
   isHydrated: boolean;
   error: string | null;
   lastRoute: RouteResponse | null;
@@ -26,6 +30,7 @@ export interface ChatState {
   stop: () => void;
   autoRouting: boolean;
   setAutoRouting: (enabled: boolean) => void;
+  setTemporaryMode: (enabled: boolean) => void;
   hydrate: () => void;
   setInput: (value: string) => void;
   clearError: () => void;
@@ -42,6 +47,21 @@ function makeSessionId(): string {
 
 function stamp(): string {
   return new Date().toISOString();
+}
+
+function normaliseMessages(messages: unknown): LLMMessage[] {
+  if (!Array.isArray(messages)) return [];
+  return messages.flatMap((message): LLMMessage[] => {
+    if (!message || typeof message !== 'object') return [];
+    const candidate = message as Partial<LLMMessage>;
+    if ((candidate.role !== 'user' && candidate.role !== 'assistant')
+      || typeof candidate.content !== 'string') return [];
+    return [{
+      role: candidate.role,
+      content: candidate.content,
+      ...(typeof candidate.created_at === 'string' ? { created_at: candidate.created_at } : {}),
+    }];
+  });
 }
 
 function offlineCheckIn(): LLMMessage {
@@ -63,7 +83,7 @@ function readPersisted(): { messages: LLMMessage[]; sessionId: string } | null {
   );
   if (!stored || !Array.isArray(stored.messages)) return null;
   return {
-    messages: stored.messages.filter((m) => m && typeof m.content === 'string'),
+    messages: normaliseMessages(stored.messages),
     sessionId: stored.sessionId || makeSessionId(),
   };
 }
@@ -73,6 +93,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sessionId: makeSessionId(),
   input: '',
   isSending: false,
+  temporaryMode: false,
   isHydrated: false,
   error: null,
   lastRoute: null,
@@ -82,6 +103,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     setStorage(`${config.storage.uiPrefsKey}-autoRouting`, enabled);
     set({ autoRouting: enabled });
   },
+  setTemporaryMode: (enabled) => {
+    if (get().isSending) return;
+    if (enabled) {
+      // Temporary chat is memory-only. Remove the current draft and active
+      // transcript from browser storage as soon as the mode is enabled.
+      removeStorage(config.storage.conversationKey);
+      removeStorage(DRAFT_KEY);
+      set({ temporaryMode: true });
+      return;
+    }
+    if (get().messages.length > 0) return;
+    set({ temporaryMode: false });
+  },
   stop: () => activeRequest?.abort(),
   hydrate: () => {
     if (get().isHydrated) return;
@@ -90,31 +124,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: persisted?.messages ?? [],
       sessionId: persisted?.sessionId ?? get().sessionId,
+      input: getStorage<string>(DRAFT_KEY) ?? '',
       ...(typeof storedAutoRouting === 'boolean' ? { autoRouting: storedAutoRouting } : {}),
       isHydrated: true,
     });
   },
 
-  setInput: (value) => set({ input: value }),
+  setInput: (value) => {
+    set({ input: value });
+    if (get().temporaryMode) removeStorage(DRAFT_KEY);
+    else if (value) setStorage(DRAFT_KEY, value);
+    else removeStorage(DRAFT_KEY);
+  },
 
   clearError: () => set({ error: null }),
 
   newSession: () => {
     if (get().isSending) return;
-    const previous = get();
-    if (previous.messages.length) {
-      useHistoryStore.getState().archiveLocal({
-        sessionId: previous.sessionId,
-        messages: previous.messages,
-        createdAt: stamp(),
-        ...(previous.lastRoute?.protocol ? { protocolUsed: previous.lastRoute.protocol } : {}),
-      });
-    }
     useHistoryStore.getState().setActive(null);
     removeStorage(config.storage.conversationKey);
+    removeStorage(DRAFT_KEY);
     set({
       messages: [],
       sessionId: makeSessionId(),
+      temporaryMode: false,
       input: '',
       error: null,
       lastRoute: null,
@@ -129,16 +162,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const transcript = [...get().messages, userMessage];
 
     set({ messages: transcript, input: '', isSending: true, error: null });
-    setStorage(config.storage.conversationKey, {
-      messages: transcript,
-      sessionId: get().sessionId,
-    });
+    removeStorage(DRAFT_KEY);
+    if (!get().temporaryMode) {
+      setStorage(config.storage.conversationKey, {
+        messages: transcript,
+        sessionId: get().sessionId,
+      });
+    }
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       set({ messages: [...transcript, offlineCheckIn()], isSending: false, error: null, lastRoute: null });
-      setStorage(config.storage.conversationKey, {
-        messages: get().messages, sessionId: get().sessionId,
-      });
+      if (!get().temporaryMode) {
+        setStorage(config.storage.conversationKey, {
+          messages: get().messages, sessionId: get().sessionId,
+        });
+      }
       return;
     }
 
@@ -149,7 +187,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const created_at = stamp();
     try {
       await streamConversation({
-        messages: transcript,
+        // Keep requests bounded while preserving the complete local transcript.
+        messages: transcript.slice(-MAX_CONTEXT_MESSAGES).map((message) => ({
+          ...message,
+          content: message.content.slice(-MAX_CONTEXT_MESSAGE_CHARS),
+        })),
         ...(!get().autoRouting && useProtocolStore.getState().selected
           ? { protocol: useProtocolStore.getState().selected } : {}),
       }, controller.signal, (delta) => {
@@ -166,9 +208,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       clearTimeout(timeout);
       activeRequest = null;
       set({ isSending: false });
-      setStorage(config.storage.conversationKey, {
-        messages: get().messages, sessionId: get().sessionId,
-      });
+      if (!get().temporaryMode) {
+        setStorage(config.storage.conversationKey, {
+          messages: get().messages, sessionId: get().sessionId,
+        });
+      }
     }
   },
 
@@ -185,7 +229,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   persist: async () => {
     const { messages, sessionId, lastRoute } = get();
-    if (!messages.length || get().isSending) return;
+    if (!messages.length || get().isSending || get().temporaryMode) return;
     const createdAt = stamp();
     const localHistoryKey = `${config.storage.conversationKey}-history`;
     const cached = getStorage<HistoryEntry[]>(localHistoryKey) ?? [];
@@ -222,15 +266,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadSession: (entry) => {
     if (get().isSending) return;
+    const messages = normaliseMessages(entry.messages);
     set({
-      messages: entry.messages,
+      messages,
       sessionId: entry.sessionId,
+      input: '',
       error: null,
       lastRoute: null,
     });
-    setStorage(config.storage.conversationKey, {
-      messages: entry.messages,
-      sessionId: entry.sessionId,
-    });
+    removeStorage(DRAFT_KEY);
+    if (!get().temporaryMode) {
+      setStorage(config.storage.conversationKey, {
+        messages,
+        sessionId: entry.sessionId,
+      });
+    }
   },
 }));
