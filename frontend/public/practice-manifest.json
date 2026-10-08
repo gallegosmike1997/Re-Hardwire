@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "packVersion": "1.0.0",
+  "reviewStatus": "independent_review_pending",
+  "clinicalReviewSharing": "disabled",
+  "practices": [
+    { "id": "grounding", "category": "settle", "source": "VA National Center for PTSD" },
+    { "id": "breathing", "category": "settle", "source": "VA National Center for PTSD" },
+    { "id": "helpful-thinking", "category": "think", "source": "VA Skills for Psychological Recovery" },
+    { "id": "next-step", "category": "act", "source": "VA Skills for Psychological Recovery" },
+    { "id": "small-activity", "category": "act", "source": "VA Skills for Psychological Recovery" },
+    { "id": "connection", "category": "connect", "source": "VA Skills for Psychological Recovery" }
+  ]
+}

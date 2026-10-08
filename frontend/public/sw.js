@@ -1,6 +1,40 @@
-const CACHE_NAME = 're-hardwire-shell-v1';
-const CORE_PAGES = ['/', '/tools/', '/support-plan/', '/chat/', '/protocol/', '/success/', '/account/', '/settings/'];
-const APP_ASSETS = ['/offline.html', '/manifest.webmanifest', '/logo.svg'];
+const CACHE_NAME = 're-hardwire-shell-v2';
+const CORE_PAGES = ['/', '/now/', '/tools/', '/support-plan/', '/chat/', '/protocol/', '/success/', '/account/', '/settings/'];
+const APP_ASSETS = ['/offline.html', '/manifest.webmanifest', '/logo.svg', '/practice-manifest.json'];
+
+async function cacheStatus() {
+  const cache = await caches.open(CACHE_NAME);
+  const pageResults = await Promise.all(CORE_PAGES.map(async (path) => [path, Boolean(await cache.match(path))]));
+  const assetResults = await Promise.all(APP_ASSETS.map(async (path) => [path, Boolean(await cache.match(path))]));
+  const ready = [...pageResults, ...assetResults].every(([, present]) => present);
+  return {
+    ready,
+    cachedPages: pageResults.filter(([, present]) => present).map(([path]) => path),
+    missingPages: pageResults.filter(([, present]) => !present).map(([path]) => path),
+    cachedAssets: assetResults.filter(([, present]) => present).map(([path]) => path),
+    missingAssets: assetResults.filter(([, present]) => !present).map(([path]) => path),
+  };
+}
+
+self.addEventListener('message', (event) => {
+  const type = event.data?.type;
+  if (type !== 'GET_OFFLINE_STATUS' && type !== 'PREPARE_OFFLINE') return;
+  const port = event.ports?.[0];
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    if (type === 'PREPARE_OFFLINE') {
+      await Promise.allSettled([
+        ...CORE_PAGES.map((path) => cacheAppPage(cache, path)),
+        ...APP_ASSETS.map(async (path) => {
+          const response = await fetch(path);
+          if (response.ok) await cache.put(path, response);
+          else throw new Error(`Could not cache ${path}`);
+        }),
+      ]);
+    }
+    port?.postMessage({ type: 'OFFLINE_STATUS', ...(await cacheStatus()) });
+  })().catch(() => port?.postMessage({ type: 'OFFLINE_STATUS', ready: false, error: true })));
+});
 
 async function cacheAppPage(cache, path) {
   const response = await fetch(path);

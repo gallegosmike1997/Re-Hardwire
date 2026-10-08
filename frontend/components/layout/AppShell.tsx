@@ -10,6 +10,7 @@ import { useProtocolStore } from '@/state/useProtocolStore';
 import { useSystemStore } from '@/state/useSystemStore';
 import { ThemeController } from '@/components/settings/ThemeController';
 import { useHistoryStore } from '@/state/useHistoryStore';
+import { usePracticeStore } from '@/state/usePracticeStore';
 
 function ConnectionBanner() {
   const [online, setOnline] = useState(true);
@@ -44,6 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const hydrateChat = useChatStore((state) => state.hydrate);
   const hydrateProfile = useProfileStore((state) => state.hydrate);
   const hydrateProtocol = useProtocolStore((state) => state.hydrate);
+  const hydratePractices = usePracticeStore((state) => state.hydrate);
 
   const loadProfile = useProfileStore((state) => state.loadProfile);
   const loadCatalog = useProtocolStore((state) => state.loadCatalog);
@@ -54,6 +56,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     hydrateChat();
     hydrateProfile();
     hydrateProtocol();
+    hydratePractices();
 
     void check();
     void loadProfile();
@@ -69,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener('online', syncLocalState);
     return () => window.removeEventListener('online', syncLocalState);
-  }, [check, hydrateChat, hydrateProfile, hydrateProtocol, loadCatalog, loadProfile]);
+  }, [check, hydrateChat, hydrateProfile, hydrateProtocol, hydratePractices, loadCatalog, loadProfile]);
 
   return (
     <div className="flex h-full min-h-screen">

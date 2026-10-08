@@ -19,6 +19,7 @@ const OPTIONS: { value: Theme; label: string }[] = [
 export function ThemeController({ controls = false }: { controls?: boolean }) {
   const theme = useProfileStore((state) => state.ui.theme);
   const reducedMotion = useProfileStore((state) => state.ui.reducedMotion);
+  const quietMode = useProfileStore((state) => state.ui.quietMode);
   const textSize = useProfileStore((state) => state.ui.textSize);
   const updateUi = useProfileStore((state) => state.updateUi);
 
@@ -31,6 +32,10 @@ export function ThemeController({ controls = false }: { controls?: boolean }) {
   useEffect(() => {
     document.documentElement.classList.toggle('motion-off', reducedMotion);
   }, [reducedMotion]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('quiet-mode', quietMode);
+  }, [quietMode]);
 
   useEffect(() => {
     document.documentElement.dataset.textSize = textSize;

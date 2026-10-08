@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
+import { usePracticeStore } from '@/state/usePracticeStore';
 
 type Skill = {
   id: string;
@@ -111,23 +112,28 @@ const SKILLS: Skill[] = [
   },
 ];
 
-const GROUPS = ['All tools', 'Settle', 'Think', 'Act', 'Connect'] as const;
+const GROUPS = ['All tools', 'Saved for later', 'Settle', 'Think', 'Act', 'Connect'] as const;
 
 export default function ToolsPage() {
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<(typeof GROUPS)[number]>('All tools');
   const [active, setActive] = useState<Skill | null>(null);
   const [step, setStep] = useState(0);
+  const favorites = usePracticeStore((state) => state.favorites);
+  const feedback = usePracticeStore((state) => state.feedback);
+  const toggleFavorite = usePracticeStore((state) => state.toggleFavorite);
+  const setFeedback = usePracticeStore((state) => state.setFeedback);
   const practiceRef = useRef<HTMLElement>(null);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return SKILLS.filter((skill) => {
-      const matchesGroup = group === 'All tools' || skill.group === group;
+      const matchesGroup = group === 'All tools'
+        || (group === 'Saved for later' ? favorites.includes(skill.id) : skill.group === group);
       const matchesQuery = !needle || `${skill.title} ${skill.group} ${skill.description}`.toLowerCase().includes(needle);
       return matchesGroup && matchesQuery;
     });
-  }, [group, query]);
+  }, [favorites, group, query]);
 
   const begin = (skill: Skill) => {
     setActive(skill);
@@ -164,7 +170,7 @@ export default function ToolsPage() {
           No account or connection needed for these tools
         </div>
         <p className="max-w-2xl text-xs leading-relaxed text-slate-500">
-          These practices link to public VA self-help sources. Re-Hardwire adaptations have not yet received independent clinical review, and VA does not endorse this app.
+          Practice pack 1.0.0. These practices link to public VA self-help sources. Re-Hardwire adaptations have not yet received independent clinical review, and VA does not endorse this app. Practice saves and feedback stay on this device.
         </p>
       </header>
 
@@ -180,7 +186,7 @@ export default function ToolsPage() {
               className="hw-focus w-full rounded-lg border border-edgesoft bg-void/70 py-2.5 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-600"
             />
           </label>
-          <p className="text-xs text-slate-500">Pick what feels right. You can stop or switch at any time.</p>
+          <p className="text-xs text-slate-500">Pick what feels right. You can stop or switch at any time. {favorites.length} saved for later.</p>
         </div>
 
         <div className="flex flex-wrap gap-2" aria-label="Filter by kind of support">
@@ -211,6 +217,14 @@ export default function ToolsPage() {
               </div>
               <h2 className="text-base font-semibold tracking-tight text-slate-100">{skill.title}</h2>
               <p className="mt-1.5 flex-1 text-sm leading-relaxed text-slate-400">{skill.description}</p>
+              <button
+                type="button"
+                aria-pressed={favorites.includes(skill.id)}
+                onClick={() => toggleFavorite(skill.id)}
+                className="hw-focus mt-3 min-h-9 self-start rounded-lg px-2.5 py-1.5 text-xs text-slate-400 hover:bg-panelsoft hover:text-signal-300"
+              >
+                {favorites.includes(skill.id) ? 'Saved for later · Remove' : 'Save for later'}
+              </button>
               <button
                 type="button"
                 onClick={() => begin(skill)}
@@ -264,6 +278,14 @@ export default function ToolsPage() {
                 <p className="hw-label">Practice complete</p>
                 <h3 className="text-xl font-semibold text-slate-100">Take a moment to notice what you need next.</h3>
                 <p className="text-sm leading-relaxed text-slate-400">There is no right result. You can try another tool, pause here, or reach out to someone you trust.</p>
+                <div className="space-y-2 rounded-xl border border-edgesoft bg-panelsoft/40 p-3">
+                  <p className="text-xs font-medium text-slate-300">Would you like to keep a note for yourself?</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" aria-pressed={feedback[active.id] === 'helped'} onClick={() => setFeedback(active.id, 'helped')} className="hw-focus min-h-10 rounded-lg border border-edgesoft px-3 py-2 text-xs text-slate-300 hover:bg-panelsoft">This helped</button>
+                    <button type="button" aria-pressed={feedback[active.id] === 'not_for_me'} onClick={() => setFeedback(active.id, 'not_for_me')} className="hw-focus min-h-10 rounded-lg border border-edgesoft px-3 py-2 text-xs text-slate-300 hover:bg-panelsoft">Not for me</button>
+                  </div>
+                  <p className="text-[11px] text-slate-600" aria-live="polite">{feedback[active.id] ? 'Your note is saved only on this device.' : 'Optional. This is not sent to a clinician or service.'}</p>
+                </div>
                 <button type="button" onClick={() => { setActive(null); setStep(0); }} className="hw-focus rounded-lg border border-edgesoft px-4 py-2 text-sm text-slate-300 hover:bg-panelsoft">Choose another tool</button>
               </div>
             )}

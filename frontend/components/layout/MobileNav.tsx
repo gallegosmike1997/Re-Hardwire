@@ -6,9 +6,10 @@ import { usePathname } from 'next/navigation';
 import { Icon, toIconName } from '@/components/ui/Icon';
 import { getActiveRoute, routes } from '@/lib/routing';
 
-const primaryHrefs = ['/', '/tools', '/chat', '/support-plan'];
+const primaryHrefs = ['/', '/now', '/tools', '/chat', '/support-plan'];
 const primaryLabels: Record<string, string> = {
   '/': 'Home',
+  '/now': 'Now',
   '/tools': 'Tools',
   '/chat': 'Chat',
   '/support-plan': 'My plan',

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
+import { OfflineReadinessCard } from '@/components/offline/OfflineReadinessCard';
 
 const quickTools = [
   { title: 'Come back to right now', detail: 'Reconnect with the room around you', href: '/tools#grounding', kind: 'SETTLE', time: '2 min', icon: 'activity' },
@@ -31,7 +32,10 @@ export default function HomePage() {
             Find a steady next step, explore a guided practice, or put what’s on your mind into words. Start wherever you are.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/tools" className="hw-focus inline-flex min-h-12 items-center gap-2 rounded-xl bg-signal-500 px-4 py-3 text-sm font-semibold text-void shadow-glow transition-[transform,background-color,box-shadow] hover:bg-signal-400 active:scale-[0.98]">
+            <Link href="/now" className="hw-focus inline-flex min-h-12 items-center gap-2 rounded-xl bg-signal-500 px-4 py-3 text-sm font-semibold text-void shadow-glow transition-[transform,background-color,box-shadow] hover:bg-signal-400 active:scale-[0.98]">
+              Help me right now <Icon name="chevron" size={16} />
+            </Link>
+            <Link href="/tools" className="hw-focus inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/[0.1] bg-ink/30 px-4 py-3 text-sm font-medium text-slate-200 transition-[transform,background-color,border-color] hover:border-white/[0.18] hover:bg-ink/55 active:scale-[0.98]">
               Browse guided tools <Icon name="chevron" size={16} />
             </Link>
             <Link href="/chat" className="hw-focus inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/[0.1] bg-ink/30 px-4 py-3 text-sm font-medium text-slate-200 transition-[transform,background-color,border-color] hover:border-white/[0.18] hover:bg-ink/55 active:scale-[0.98]">
@@ -81,10 +85,11 @@ export default function HomePage() {
           <Link href="/tools" className="hw-focus mt-4 inline-flex min-h-10 items-center rounded-xl border border-edgesoft px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:border-signal-500/40 hover:text-signal-300">Explore the library</Link>
         </Card>
         <Card title="Your space, on your device" subtitle="Use the guided library without an account or subscription.">
-          <p className="text-xs leading-relaxed text-slate-500">Practice instructions run on your device. Chat transcripts are saved locally; saving to a server is optional and requires the configured backend. The practice library remains ready offline.</p>
+          <p className="text-xs leading-relaxed text-slate-500">Practice instructions and your support plan stay on this device. Chat transcripts are stored locally, but online chat sends each message to the configured reply service to generate a response. Saving conversation history to a server is a separate optional action.</p>
           <p className="mt-3 text-[11px] leading-relaxed text-slate-600">Re-Hardwire is a self-help coaching app, not medical care or an emergency service. In the U.S., call or text 988 for emotional crisis support.</p>
         </Card>
       </div>
+      <OfflineReadinessCard />
     </div>
   );
 }

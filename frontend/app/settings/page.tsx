@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useProfileStore } from '@/state/useProfileStore';
 import { Card, Notice, StatTile, Toggle } from '@/components/ui';
 import { ThemeController } from '@/components/settings/ThemeController';
+import { OfflineReadinessCard } from '@/components/offline/OfflineReadinessCard';
 
 function exportLocalData() {
   const data: Record<string, unknown> = {};
@@ -131,6 +132,12 @@ export default function SettingsPage() {
             onChange={(next) => updateUi({ reducedMotion: next })}
           />
           <Toggle
+            label="Quiet sensory mode"
+            description="Remove ambient background effects, card lift, and decorative shadows."
+            checked={ui.quietMode}
+            onChange={(next) => updateUi({ quietMode: next })}
+          />
+          <Toggle
             label="Routing signals"
             description="Show protocol chips under coach replies."
             checked={ui.showSignals}
@@ -153,6 +160,17 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
+      </Card>
+
+      <OfflineReadinessCard />
+
+      <Card title="Conversation review and sharing" subtitle="Clinical review is off for every conversation.">
+        <p className="text-xs leading-relaxed text-slate-400">
+          This app has no clinician review service, and no conversations are sent to clinicians. Coach chat is a separate online feature: when you send a message, it is sent to the configured chat backend or provider to generate a reply. That chat request is not a clinical review. Chat transcripts are kept on this device by default; using online chat still requires sending each message to the reply service.
+        </p>
+        <p className="mt-3 text-[11px] leading-relaxed text-slate-600">
+          Independent review of the practice adaptations is also pending. No national clinical approval or endorsement is claimed.
+        </p>
       </Card>
 
       <Card title="Privacy and local data" subtitle="Export or clear data saved in this browser profile.">

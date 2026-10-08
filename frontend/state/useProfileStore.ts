@@ -13,6 +13,7 @@ export interface UiPreferences {
   theme: 'light' | 'dark' | 'midnight';
   textSize: 'regular' | 'large' | 'largest';
   reducedMotion: boolean;
+  quietMode: boolean;
   showSignals: boolean;
   sidebarCollapsed: boolean;
 }
@@ -21,6 +22,7 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   theme: 'dark',
   textSize: 'regular',
   reducedMotion: false,
+  quietMode: false,
   showSignals: true,
   sidebarCollapsed: false,
 };

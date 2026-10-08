@@ -4,6 +4,8 @@
 
 The browser app stores profile details, preferences, chat transcripts, wins, and the personal support plan in browser/device local storage. This is convenient for offline use, but the app does not encrypt those entries. Anyone with access to the same unlocked device and browser profile may be able to read them. The Settings page can export or clear local Re-Hardwire data.
 
+Clinical conversation review is off: no clinician review service is configured, and conversations are not sent to clinicians. Online coach chat has a separate data flow: a message must be sent to the configured backend/provider to produce its reply. The local transcript is saved on-device; explicitly saving a conversation to backend history is a separate action. This prototype backend has no per-user isolation, so do not use remote history storage for sensitive conversations.
+
 Export creates a readable JSON file. Store it somewhere private and delete it when no longer needed. Clearing local data does not erase records that were already sent to a backend.
 
 ## Backend boundary

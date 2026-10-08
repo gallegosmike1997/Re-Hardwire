@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.history import router as history_router
+from app.api.capabilities import router as capabilities_router
 from app.api.llm import router as llm_router
 from app.api.profile import router as profile_router
 from app.api.route import router as route_router
@@ -63,6 +64,7 @@ def api_index() -> dict:
             "tts": "/api/tts",
             "history": "/api/history",
             "profile": "/api/profile",
+            "capabilities": "/api/v1/capabilities",
         },
     }
 
@@ -74,3 +76,4 @@ app.include_router(llm_router, prefix="/api/llm")
 app.include_router(tts_router, prefix="/api/tts")
 app.include_router(history_router, prefix="/api/history")
 app.include_router(profile_router, prefix="/api/profile")
+app.include_router(capabilities_router, prefix="/api/v1", tags=["v1 capabilities"])

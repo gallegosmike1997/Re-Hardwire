@@ -11,6 +11,7 @@ export const config = {
       tts: '/api/tts',
       history: '/api/history',
       profile: '/api/profile',
+      capabilities: '/api/v1/capabilities',
     },
     timeout: 10000,
   },
@@ -31,6 +32,7 @@ export const config = {
     uiPrefsKey: 're-hardwire-ui-prefs',
     winsKey: 're-hardwire-wins',
     supportPlanKey: 're-hardwire-support-plan',
+    practiceKey: 're-hardwire-practice-feedback',
   },
 } as const;
 

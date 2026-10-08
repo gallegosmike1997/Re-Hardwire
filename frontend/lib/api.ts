@@ -14,6 +14,22 @@ export interface HealthResponse {
   engine: string;
 }
 
+export interface AppCapabilities {
+  apiVersion: string;
+  app: string;
+  features: {
+    guidedPractices: { availableOffline: boolean; packVersion: string };
+    supportPlan: { availableOffline: boolean; storage: string };
+    coachChat: { requiresNetwork: boolean };
+    clinicalConversationReview: { available: boolean; sharingEnabled: boolean; reason: string };
+  };
+  privacy: {
+    chatRequestSentToReplyService: boolean;
+    automaticClinicalReviewSharing: boolean;
+    historyBackendHasPerUserIsolation: boolean;
+  };
+}
+
 export interface LLMMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -145,6 +161,10 @@ class ApiClient {
 
   async checkHealth(): Promise<ApiResponse<HealthResponse>> {
     return this.get<HealthResponse>(config.api.endpoints.health);
+  }
+
+  async getCapabilities(): Promise<ApiResponse<AppCapabilities>> {
+    return this.get<AppCapabilities>(config.api.endpoints.capabilities);
   }
 
   async streamLLM(req: LLMRequest): Promise<ApiResponse<LLMResponse>> {

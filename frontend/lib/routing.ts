@@ -19,6 +19,7 @@ export const routes: RouteGroup[] = [
     label: 'Main',
     items: [
       { label: 'Home', href: '/', icon: 'home', section: 'main' },
+      { label: 'Right now', href: '/now', icon: 'activity', section: 'main' },
       { label: 'Guided tools', href: '/tools', icon: 'activity', section: 'main' },
       { label: 'My support plan', href: '/support-plan', icon: 'shield', section: 'main' },
       { label: 'Chat', href: '/chat', icon: 'chat', section: 'main' },
@@ -53,6 +54,8 @@ export function getActiveRoute(pathname: string): NavItem | undefined {
 
 export const pageMeta: Record<string, { title: string; description: string }> = {
   '/': { title: 'Re-Hardwire - Dashboard', description: 'Guided self-help practices and optional coaching' },
+  '/now': { title: 'Re-Hardwire - Right now', description: 'Choose a small next step for this moment' },
+  '/now/': { title: 'Re-Hardwire - Right now', description: 'Choose a small next step for this moment' },
   '/chat': { title: 'Re-Hardwire - Chat', description: 'Check in with the coach service or use on-device tools offline' },
   '/tools': { title: 'Re-Hardwire - Guided tools', description: 'Guided coping practices that work offline' },
   '/tools/': { title: 'Re-Hardwire - Guided tools', description: 'Guided coping practices that work offline' },

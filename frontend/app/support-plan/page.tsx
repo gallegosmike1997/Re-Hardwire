@@ -49,6 +49,8 @@ export default function SupportPlanPage() {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const [dirty, setDirty] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [includedSections, setIncludedSections] = useState<Set<string>>(() => new Set(SECTIONS.map(({ key }) => key)));
 
   useEffect(() => {
     const saved = getStorage<SavedSupportPlan>(config.storage.supportPlanKey);
@@ -74,6 +76,38 @@ export default function SupportPlanPage() {
     setUpdatedAt(null);
     setDirty(false);
     setNotice('The saved plan was deleted from this browser profile.');
+  };
+
+  const selectedPlanText = () => SECTIONS
+    .filter((section) => includedSections.has(section.key))
+    .map((section) => `${section.title}\n${answers[section.key]?.trim() || '(no notes)'}`)
+    .join('\n\n');
+
+  const exportSelectedPlan = async () => {
+    const text = `My support plan\nPrepared ${new Date().toLocaleDateString()}\n\n${selectedPlanText()}\n\nCreated with Re-Hardwire. This is a personal worksheet, not a clinical safety plan.`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'My support plan', text });
+        setNotice('The selected sections were opened in your device share sheet.');
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return;
+        setNotice('Sharing was unavailable. A text file was downloaded instead.');
+        downloadSelectedPlan(text);
+      }
+      return;
+    }
+    downloadSelectedPlan(text);
+    setNotice('The selected sections were downloaded as a text file.');
+  };
+
+  const downloadSelectedPlan = (text: string) => {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `re-hardwire-support-plan-${new Date().toISOString().slice(0, 10)}.txt`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -125,6 +159,13 @@ export default function SupportPlanPage() {
         </button>
         <button
           type="button"
+          onClick={() => setShareOpen((open) => !open)}
+          className="hw-focus rounded-lg border border-edgesoft px-4 py-2.5 text-sm text-slate-200 hover:bg-panelsoft"
+        >
+          {shareOpen ? 'Close export preview' : 'Choose sections to share or export'}
+        </button>
+        <button
+          type="button"
           onClick={() => window.print()}
           className="hw-focus rounded-lg border border-edgesoft px-4 py-2.5 text-sm text-slate-200 hover:bg-panelsoft"
         >
@@ -141,6 +182,44 @@ export default function SupportPlanPage() {
           {notice || (dirty ? 'Unsaved changes' : updatedAt ? `Saved ${new Date(updatedAt).toLocaleString()}` : 'Not saved yet')}
         </span>
       </div>
+
+      {shareOpen && (
+        <section className="hw-panel space-y-4 p-4 sm:p-5 print:hidden" aria-labelledby="support-export-title">
+          <div>
+            <h2 id="support-export-title" className="text-sm font-semibold text-slate-100">Choose what to include</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">Review the preview before sharing. Nothing is sent until you choose an app in your device share sheet. If sharing is unavailable, a text file downloads to this device.</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {SECTIONS.map((section) => (
+              <label key={section.key} className="flex min-h-11 items-center gap-3 rounded-lg border border-edgesoft bg-panelsoft/40 px-3 py-2 text-xs text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={includedSections.has(section.key)}
+                  onChange={(event) => setIncludedSections((current) => {
+                    const next = new Set(current);
+                    if (event.target.checked) next.add(section.key);
+                    else next.delete(section.key);
+                    return next;
+                  })}
+                  className="h-4 w-4 accent-signal-400"
+                />
+                {section.title}
+              </label>
+            ))}
+          </div>
+          <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-xl border border-edgesoft bg-void/50 p-3 text-xs leading-relaxed text-slate-300" aria-label="Preview of selected support plan sections">
+            {includedSections.size ? selectedPlanText() : 'Choose at least one section to preview.'}
+          </pre>
+          <button
+            type="button"
+            disabled={!includedSections.size}
+            onClick={() => void exportSelectedPlan()}
+            className="hw-focus min-h-11 rounded-lg bg-signal-500 px-4 py-2.5 text-sm font-semibold text-void hover:bg-signal-400 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Share or download selected sections
+          </button>
+        </section>
+      )}
 
       <section className="rounded-xl border border-alarm/20 bg-alarm/5 p-4 sm:p-5" aria-label="Urgent support">
         <h2 className="text-sm font-semibold text-slate-100">If you may hurt yourself or cannot stay safe</h2>

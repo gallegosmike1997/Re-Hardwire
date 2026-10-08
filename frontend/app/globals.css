@@ -279,6 +279,36 @@ html.motion-off *::after {
   transition-duration: 0.001s !important;
 }
 
+/* Quiet sensory mode removes ambient decoration while keeping all controls. */
+html.quiet-mode body {
+  background-image: none !important;
+}
+
+html.quiet-mode [class*='bg-gradient-to-'] {
+  background-image: none !important;
+}
+
+html.quiet-mode [class*='blur-'] {
+  display: none !important;
+}
+
+html.quiet-mode .hw-card,
+html.quiet-mode .hw-panel {
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+html.quiet-mode .hw-card:hover,
+html.quiet-mode .hw-card:active {
+  transform: none !important;
+}
+
+html.quiet-mode .animate-fade-up,
+html.quiet-mode [class*='shadow-glow'] {
+  animation: none !important;
+  box-shadow: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html *,
   html *::before,

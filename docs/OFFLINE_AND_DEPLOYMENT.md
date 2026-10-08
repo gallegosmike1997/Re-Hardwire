@@ -6,7 +6,7 @@ Re-Hardwire's guided practice library, local profile, interface preferences, and
 
 1. Install the frontend dependencies with `npm ci` from `frontend/`.
 2. Build and serve the web app from a static host that supports HTTPS. The service worker needs HTTPS (localhost is also supported by browsers).
-3. Open the app once while connected so its home screen, guided tools, and required app assets can be cached. Reopen it from the installed home-screen shortcut for offline use.
+3. Open the app while connected and use **Prepare for offline** on the home screen. It caches and verifies core pages and app files. Reopen it from the installed home-screen shortcut for offline use.
 
 Static hosting prices and limits vary by provider. The static app has no required hosted model or paid service for its guided tools. Chat and cross-device profile/history sync need a running backend; connect one with `NEXT_PUBLIC_API_BASE_URL` at build time. Never put provider API secrets in that public frontend setting.
 
@@ -21,4 +21,6 @@ From `frontend/`, run `npm ci`, then `npm run build:capacitor`. The static asset
 - Browser local storage is not encrypted by Re-Hardwire. The Settings page can export or clear the app's local data; clearing it does not delete records already sent to a backend.
 - 988 and emergency contacts require a phone or data connection. They cannot be reached by the app without a connection.
 - Coach chat does not run a language model on-device. Without its backend it says so and links to the local practice library.
+- The offline checker verifies cached core pages and static files; it does not include chat content or personal support-plan entries in the download. Guided practice saves and feedback are stored locally.
+- Conversations are not shared with clinicians. Online coach messages still go to the configured reply backend/provider to generate a response; this is not clinical review.
 - The support-plan page is a self-authored worksheet, not risk assessment or clinician-led safety-planning intervention. It cannot call or alert anyone. U.S. call/text support requires phone service; web support requires internet.

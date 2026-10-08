@@ -16,6 +16,10 @@ The guided practices are brief adaptations of publicly available U.S. Department
 
 The source register documents inspiration and provenance. It does not imply that VA reviewed, approved, or endorses Re-Hardwire.
 
+## Conversation review
+
+Clinical review sharing is disabled. No clinician review service is configured, and no conversation is sent to a clinician. Sending a message to the configured coach backend/provider to generate a response is a separate online feature and is not clinical review. Keep the review status disabled in the client capabilities until a real service, consent flow, privacy/security review, and retention/deletion policy exist.
+
 ## Review required before making clinical claims
 
 For every practice, keep a record of its intended use, source passage, adaptation notes, audience and exclusions, stop/seek-help guidance, reviewer credentials, review date, and content version. A qualified reviewer should check clinical accuracy, readability, cultural/accessibility needs, and crisis language. Ask users with lived experience to review usability and tone separately from clinical sign-off.
