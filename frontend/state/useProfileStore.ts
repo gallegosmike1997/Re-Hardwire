@@ -1,16 +1,17 @@
 /**
  * User profile, permissions and UI preferences.
  *
- * The profile is the backend's source of truth; the UI preferences
- * (sidebar collapse, motion) live only in local storage.
+ * The on-device profile and UI preferences are the local source of truth;
+ * a configured backend can synchronize account settings.
  */
 import { create } from 'zustand';
 import { api, type UserProfile } from '@/lib/api';
 import { config } from '@/lib/config';
-import { getStorage, setStorage } from '@/lib/storage';
+import { getStorage, removeStorage, setStorage } from '@/lib/storage';
 
 export interface UiPreferences {
   theme: 'light' | 'dark' | 'midnight';
+  textSize: 'regular' | 'large' | 'largest';
   reducedMotion: boolean;
   showSignals: boolean;
   sidebarCollapsed: boolean;
@@ -18,6 +19,7 @@ export interface UiPreferences {
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   theme: 'dark',
+  textSize: 'regular',
   reducedMotion: false,
   showSignals: true,
   sidebarCollapsed: false,
@@ -36,7 +38,40 @@ export interface ProfileState {
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   updateUi: (updates: Partial<UiPreferences>) => void;
   togglePermission: (permission: string) => Promise<void>;
+  resetProfile: () => Promise<void>;
   has: (permission: string) => boolean;
+}
+
+const PENDING_PROFILE_KEY = `${config.storage.profileKey}-pending`;
+
+function localProfile(): UserProfile {
+  return {
+    id: 'local-device',
+    name: 'You',
+    email: '',
+    preferences: { voiceInput: false, ttsEnabled: false, analyticsEnabled: false },
+    permissions: ['chat', 'history'],
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function mergeProfile(profile: UserProfile, updates: Partial<UserProfile>): UserProfile {
+  return {
+    ...profile,
+    ...updates,
+    preferences: { ...profile.preferences, ...(updates.preferences ?? {}) },
+  };
+}
+
+function mergeUpdates(
+  current: Partial<UserProfile>,
+  updates: Partial<UserProfile>,
+): Partial<UserProfile> {
+  return {
+    ...current,
+    ...updates,
+    preferences: { ...(current.preferences ?? {}), ...(updates.preferences ?? {}) },
+  };
 }
 
 function readUi(): UiPreferences {
@@ -54,7 +89,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
   hydrate: () => {
     if (get().isHydrated) return;
-    set({ ui: readUi(), isHydrated: true });
+    const profile = getStorage<UserProfile>(config.storage.profileKey) ?? localProfile();
+    setStorage(config.storage.profileKey, profile);
+    set({ ui: readUi(), profile, isHydrated: true });
   },
 
   loadProfile: async () => {
@@ -63,32 +100,54 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
     const response = await api.getProfile();
     if (!response.success || !response.data) {
-      // Fall back to the cached copy so the app still renders offline.
-      const cached = getStorage<UserProfile>(config.storage.profileKey);
+      // The on-device profile and preferences remain usable without the service.
+      const cached = getStorage<UserProfile>(config.storage.profileKey) ?? localProfile();
+      setStorage(config.storage.profileKey, cached);
       set({
         profile: cached,
         isLoading: false,
-        error: response.error ?? 'Could not load profile.',
+        error: 'Profile is available on this device. Backend sync is unavailable.',
       });
       return;
     }
 
-    setStorage(config.storage.profileKey, response.data);
-    set({ profile: response.data, isLoading: false, error: null });
+    const pending = getStorage<Partial<UserProfile>>(PENDING_PROFILE_KEY);
+    const profile = mergeProfile(response.data, pending ?? {});
+    setStorage(config.storage.profileKey, profile);
+    set({ profile, isLoading: false, error: pending ? 'Saved profile changes are waiting to sync.' : null });
+
+    if (pending) {
+      const snapshot = JSON.stringify(pending);
+      void api.updateProfile(pending).then((sync) => {
+        const latest = getStorage<Partial<UserProfile>>(PENDING_PROFILE_KEY);
+        if (!sync.success || !sync.data || JSON.stringify(latest) !== snapshot) return;
+        removeStorage(PENDING_PROFILE_KEY);
+        setStorage(config.storage.profileKey, sync.data);
+        set({ profile: sync.data, error: null });
+      });
+    }
   },
 
   updateProfile: async (updates) => {
-    const current = get().profile;
-    // Optimistic merge so the form never flickers back to the old value.
-    if (current) set({ profile: { ...current, ...updates } });
+    const current = get().profile ?? getStorage<UserProfile>(config.storage.profileKey) ?? localProfile();
+    const profile = mergeProfile(current, updates);
+    const pending = mergeUpdates(getStorage<Partial<UserProfile>>(PENDING_PROFILE_KEY) ?? {}, updates);
+    setStorage(config.storage.profileKey, profile);
+    setStorage(PENDING_PROFILE_KEY, pending);
+    set({ profile, isSaving: true, error: null });
 
-    set({ isSaving: true, error: null });
-    const response = await api.updateProfile(updates);
-
-    if (!response.success || !response.data) {
-      set({ profile: current, isSaving: false, error: response.error ?? 'Save failed.' });
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      set({ isSaving: false, error: 'Saved on this device. Backend sync will retry when you reconnect.' });
       return;
     }
+
+    const response = await api.updateProfile(pending);
+    const latest = getStorage<Partial<UserProfile>>(PENDING_PROFILE_KEY);
+    if (!response.success || !response.data || JSON.stringify(latest) !== JSON.stringify(pending)) {
+      set({ isSaving: false, error: 'Saved on this device. Backend sync will retry when available.' });
+      return;
+    }
+    removeStorage(PENDING_PROFILE_KEY);
     setStorage(config.storage.profileKey, response.data);
     set({ profile: response.data, isSaving: false, error: null });
   },
@@ -106,6 +165,27 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       ? current.filter((item) => item !== permission)
       : [...current, permission];
     await get().updateProfile({ permissions });
+  },
+
+  resetProfile: async () => {
+    const defaults = localProfile();
+    const updates: Partial<UserProfile> = {
+      name: defaults.name,
+      email: defaults.email,
+      preferences: defaults.preferences,
+      permissions: defaults.permissions,
+    };
+    setStorage(config.storage.profileKey, defaults);
+    setStorage(PENDING_PROFILE_KEY, updates);
+    set({ profile: defaults, error: 'Profile reset on this device.' });
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      const response = await api.updateProfile(updates);
+      if (response.success && response.data) {
+        removeStorage(PENDING_PROFILE_KEY);
+        setStorage(config.storage.profileKey, response.data);
+        set({ profile: response.data, error: null });
+      }
+    }
   },
 
   has: (permission) => get().profile?.permissions.includes(permission) ?? false,

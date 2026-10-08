@@ -1,8 +1,8 @@
 /**
  * Saved-session state for the ConversationList and Success surfaces.
  *
- * Reads the backend history first and falls back to the locally cached copy so
- * past sessions remain browsable while the engine is unreachable.
+ * Keeps an on-device history cache and merges it with backend sessions when
+ * the service is available.
  */
 import { create } from 'zustand';
 import { api, type HistoryEntry } from '@/lib/api';
@@ -18,6 +18,7 @@ export interface HistoryState {
 
   load: () => Promise<void>;
   refresh: () => Promise<void>;
+  archiveLocal: (entry: Omit<HistoryEntry, 'id'>) => void;
   remove: (id: string) => Promise<void>;
   setActive: (id: string | null) => void;
   /** Every user turn kept across all stored sessions, newest first. */
@@ -25,10 +26,16 @@ export interface HistoryState {
 }
 
 const CACHE_KEY = `${config.storage.conversationKey}-history`;
+const DELETED_KEY = `${CACHE_KEY}-deleted`;
 
 function readCache(): HistoryEntry[] {
   const cached = getStorage<HistoryEntry[]>(CACHE_KEY);
   return Array.isArray(cached) ? cached : [];
+}
+
+function readDeleted(): string[] {
+  const deleted = getStorage<string[]>(DELETED_KEY);
+  return Array.isArray(deleted) ? deleted : [];
 }
 
 function byNewest(a: HistoryEntry, b: HistoryEntry): number {
@@ -56,7 +63,20 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       return;
     }
 
-    const entries = [...response.data].sort(byNewest);
+    const deleted = readDeleted();
+    for (const id of deleted) {
+      if (!response.data.some((entry) => entry.id === id)) continue;
+      const removal = await api.delete(`${config.api.endpoints.history}/${id}`);
+      if (removal.success) {
+        setStorage(DELETED_KEY, readDeleted().filter((item) => item !== id));
+      }
+    }
+    const hiddenIds = new Set(readDeleted());
+    const localOnly = readCache().filter((entry) => entry.id.startsWith('local_'));
+    const entries = [...response.data, ...localOnly]
+      .filter((entry) => !hiddenIds.has(entry.id))
+      .filter((entry, index, all) => all.findIndex((item) => item.sessionId === entry.sessionId) === index)
+      .sort(byNewest);
     setStorage(CACHE_KEY, entries);
     set({ entries, isLoading: false, error: null });
   },
@@ -66,23 +86,51 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     await get().load();
   },
 
+  archiveLocal: (entry) => {
+    const cache = readCache();
+    const existing = cache.find((item) => item.sessionId === entry.sessionId);
+    if (existing && !existing.id.startsWith('local_')) return;
+
+    const saved: HistoryEntry = {
+      ...entry,
+      id: existing?.id ?? `local_${entry.sessionId}`,
+    };
+    const entries = [saved, ...get().entries.filter((item) => item.sessionId !== entry.sessionId)]
+      .sort(byNewest);
+    setStorage(CACHE_KEY, [saved, ...cache.filter((item) => item.sessionId !== entry.sessionId)]);
+    set({ entries });
+  },
+
   remove: async (id) => {
     set({ isDeleting: true, error: null });
-
-    const response = await api.delete(`${config.api.endpoints.history}/${id}`);
-    if (!response.success) {
-      set({ isDeleting: false, error: response.error ?? 'Delete failed.' });
-      return;
-    }
 
     const entries = get().entries.filter((entry) => entry.id !== id);
     setStorage(CACHE_KEY, entries);
     set({
       entries,
-      isDeleting: false,
+      isDeleting: true,
       error: null,
       activeId: get().activeId === id ? null : get().activeId,
     });
+
+    if (id.startsWith('local_')) {
+      set({ isDeleting: false });
+      return;
+    }
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setStorage(DELETED_KEY, [...new Set([...readDeleted(), id])]);
+      set({ isDeleting: false, error: 'Removed from this device. Server deletion will retry when you reconnect.' });
+      return;
+    }
+
+    const response = await api.delete(`${config.api.endpoints.history}/${id}`);
+    if (!response.success) {
+      setStorage(DELETED_KEY, [...new Set([...readDeleted(), id])]);
+      set({ isDeleting: false, error: 'Removed from this device. Server deletion will retry when you reconnect.' });
+      return;
+    }
+    setStorage(DELETED_KEY, readDeleted().filter((item) => item !== id));
+    set({ isDeleting: false, error: null });
   },
 
   setActive: (id) => set({ activeId: id }),

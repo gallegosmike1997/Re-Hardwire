@@ -22,14 +22,15 @@ interface Win {
 }
 
 const samplePrompts = [
-  'Managed the morning panic attack with the box-breathing drill.',
-  'Shipped the Resilience Level-3 write-up before the deadline.',
-  'Paused and reset instead of snapping during the meeting.',
-  'Took the evening walk even though motivation was zero.',
-  'Asked for help with the quarterly plan instead of carrying it alone.',
+  'I paused before responding.',
+  'I asked someone for help.',
+  'I tried one small step.',
+  'I took a break when I needed one.',
+  'I got through a hard moment.',
 ];
 
 const stamp = () => new Date().toISOString();
+const winId = () => `win_${Date.now()}`;
 
 export default function SuccessPage() {
   const [sessions, setSessions] = useState<HistoryEntry[]>([]);
@@ -46,9 +47,14 @@ export default function SuccessPage() {
       const response = await fetch('/api/history', { cache: 'no-store' });
       if (!response.ok) throw new Error(`history request failed (${response.status})`);
       const list = (await response.json()) as HistoryEntry[];
-      setSessions(list);
+      const local = getStorage<HistoryEntry[]>(`${config.storage.conversationKey}-history`) ?? [];
+      const combined = [...list, ...local.filter((entry) => entry.id.startsWith('local_'))]
+        .filter((entry, index, all) => all.findIndex((item) => item.sessionId === entry.sessionId) === index);
+      setSessions(combined);
     } catch {
-      setError('Could not load session history. Is the backend running?');
+      const cached = getStorage<HistoryEntry[]>(`${config.storage.conversationKey}-history`) ?? [];
+      setSessions(cached);
+      if (!cached.length) setError('No saved sessions are available on this device yet.');
     } finally {
       setLoading(false);
     }
@@ -60,13 +66,15 @@ export default function SuccessPage() {
   }, []);
 
   useEffect(() => {
+    // Hydrate local history and request saved sessions after the client mounts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadSessions();
     loadWins();
   }, [loadSessions, loadWins]);
 
   const recordWin = (text: string) => {
     if (!text.trim()) return;
-    const next = [{ id: `win_${Date.now()}`, text: text.trim(), createdAt: stamp() }, ...wins];
+    const next = [{ id: winId(), text: text.trim(), createdAt: stamp() }, ...wins];
     setWins(next);
     setStorage(config.storage.winsKey, next);
   };
@@ -96,9 +104,7 @@ export default function SuccessPage() {
         <p className="hw-label">Success</p>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-100">Wins & progress</h1>
         <p className="max-w-lg text-sm leading-relaxed text-slate-500">
-          Coaching progress is built from small, repeatable reps. Record the
-          moments that held even when everything else did not, then review them
-          when the baseline drifts.
+          Small efforts count. Note a moment that mattered and return to it later. There are no streaks or scores here.
         </p>
       </header>
 
@@ -131,7 +137,7 @@ export default function SuccessPage() {
           Add win
         </button>
 
-        <p className="text-xs text-slate-600">Recent phrases people use:</p>
+        <p className="text-xs text-slate-600">A few prompts, if one helps:</p>
         <div className="flex flex-wrap gap-1.5">
           {samplePrompts.map((text) => (
             <button

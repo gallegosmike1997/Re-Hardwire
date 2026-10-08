@@ -36,14 +36,14 @@ export function Sidebar() {
   return (
     <aside
       className={[
-        'hidden shrink-0 flex-col border-r border-edge bg-ink/70 backdrop-blur md:flex',
+        'hidden shrink-0 flex-col border-r border-white/[0.06] bg-ink/65 backdrop-blur-xl md:flex',
         collapsed ? 'w-[68px]' : 'w-64',
         'transition-[width] duration-200 ease-out',
       ].join(' ')}
     >
-      <div className="flex h-16 items-center gap-2.5 border-b border-edge px-4">
+      <div className="flex h-[4.5rem] items-center gap-3 border-b border-white/[0.06] px-4">
         <Link href="/" aria-label="Re-Hardwire home" className="hw-focus shrink-0 rounded-lg">
-          <Image src="/logo.svg" alt="" width={36} height={36} priority />
+          <Image src="/logo.svg" alt="" width={38} height={38} priority />
         </Link>
         {!collapsed && (
           <div className="min-w-0">
@@ -57,9 +57,9 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className="hw-scroll flex-1 overflow-y-auto px-2 py-3">
+      <nav className="hw-scroll flex-1 overflow-y-auto px-2.5 py-4">
         {routes.map((group) => (
-          <div key={group.label} className="mb-4 last:mb-0">
+          <div key={group.label} className="mb-5 last:mb-0">
             {!collapsed && <p className="hw-label mb-2 px-2">{group.label}</p>}
             <ul className="space-y-0.5">
               {group.items.map((item) => {
@@ -74,12 +74,12 @@ export function Sidebar() {
                       title={collapsed ? item.label : undefined}
                       aria-current={isActive ? 'page' : undefined}
                       className={[
-                        'hw-focus flex items-center gap-2.5 rounded-lg px-2.5 py-2',
+                        'hw-focus relative flex items-center gap-2.5 rounded-xl px-2.5 py-2.5',
                         'text-sm transition-colors duration-150',
                         collapsed ? 'justify-center' : '',
                         isActive
-                          ? 'bg-signal-500/10 text-signal-200'
-                          : 'text-slate-400 hover:bg-panelsoft hover:text-slate-100',
+                          ? 'bg-gradient-to-r from-signal-500/15 to-signal-500/[0.03] text-signal-200 before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-signal-400'
+                          : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-100',
                       ]
                         .filter(Boolean)
                         .join(' ')}
@@ -107,15 +107,15 @@ export function Sidebar() {
       </nav>
 
       {!collapsed && (
-        <div className="space-y-2 border-t border-edge px-3 py-3">
+        <div className="space-y-2 border-t border-white/[0.06] px-3 py-4">
           <p className="hw-label">Active protocol</p>
-          <p className="truncate text-xs text-slate-300">
+          <p className="truncate text-xs font-medium text-slate-300">
             {selectedProtocol ? shortProtocol(selectedProtocol) : 'Auto-route'}
           </p>
           <button
             type="button"
             onClick={() => void check()}
-            className="hw-focus flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-panelsoft"
+          className="hw-focus flex w-full items-center gap-2 rounded-xl border border-white/[0.05] bg-white/[0.025] px-2.5 py-2 text-left transition-colors hover:bg-white/[0.05]"
           >
             <span className={['h-1.5 w-1.5 shrink-0 rounded-full', STATUS_DOT[status]].join(' ')} />
             <span className="min-w-0 flex-1">
@@ -128,12 +128,12 @@ export function Sidebar() {
         </div>
       )}
 
-      <div className="border-t border-edge px-3 py-3">
+      <div className="border-t border-white/[0.06] px-3 py-3">
         <button
           type="button"
           onClick={() => updateUi({ sidebarCollapsed: !collapsed })}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="hw-focus flex w-full items-center justify-center gap-2 rounded-lg px-2 py-1.5 text-slate-500 transition-colors hover:bg-panelsoft hover:text-slate-200"
+          className="hw-focus flex min-h-10 w-full items-center justify-center gap-2 rounded-xl px-2 py-1.5 text-slate-500 transition-colors hover:bg-white/[0.04] hover:text-slate-200"
         >
           <Icon name="menu" size={15} />
           {!collapsed && <span className="text-xs">Collapse</span>}

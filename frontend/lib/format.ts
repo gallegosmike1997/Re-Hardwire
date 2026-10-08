@@ -52,8 +52,13 @@ export function truncate(text: string, max = 90): string {
   return `${text.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** Shorten a protocol name for compact chips. */
-export function shortProtocol(name?: string): string {
+/** Shorten a protocol name for compact chips, tolerating older stored shapes. */
+export function shortProtocol(value?: unknown): string {
+  const name = typeof value === 'string'
+    ? value
+    : value && typeof value === 'object' && 'name' in value && typeof value.name === 'string'
+      ? value.name
+      : '';
   if (!name) return 'No protocol';
   return name.replace('Resilience Builder Level ', 'L');
 }

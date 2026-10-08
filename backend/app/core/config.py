@@ -8,6 +8,7 @@ instance so all modules read configuration the same way.
 from __future__ import annotations
 
 import os
+import secrets
 from pathlib import Path
 
 try:  # python-dotenv is in requirements.txt, but stay import-safe.
@@ -36,7 +37,10 @@ class Settings:
     engine = "Re-Hardwire Core v1"
 
     api_prefix = "/api"
-    cors_origins = _env_list("CORS_ORIGINS", "*")
+    cors_origins = _env_list(
+        "CORS_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    )
 
     data_dir = Path(os.getenv("RE_HARDWIRE_DATA_DIR", str(BASE_DIR / "data")))
     history_file = data_dir / "history.json"
@@ -59,7 +63,9 @@ class Settings:
     tts_speed = float(os.getenv("TTS_SPEED", "1.0"))
     tts_words_per_minute = int(os.getenv("TTS_WORDS_PER_MINUTE", "150"))
 
-    auth_secret = os.getenv("AUTH_SECRET", "re-hardwire-dev-secret")
+    # Avoid a shared hard-coded signing key. Configure a stable value before
+    # using signed tokens across restarts or multiple backend processes.
+    auth_secret = os.getenv("AUTH_SECRET") or secrets.token_urlsafe(32)
     auth_token_ttl = int(os.getenv("AUTH_TOKEN_TTL", "86400"))
 
     default_permissions = _env_list(

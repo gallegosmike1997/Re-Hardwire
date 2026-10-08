@@ -3,11 +3,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
-import { getActiveRoute, pageMeta, routes } from '@/lib/routing';
+import { getActiveRoute, pageMeta } from '@/lib/routing';
 import { config } from '@/lib/config';
 import { engineLabel, useSystemStore } from '@/state/useSystemStore';
-import { Badge, Button, Icon, toIconName } from '@/components/ui';
+import { Badge, Button, Icon } from '@/components/ui';
 
 const STATUS_TONE = {
   unknown: 'neutral',
@@ -25,21 +24,9 @@ export function Header() {
   const engine = useSystemStore(engineLabel);
   const check = useSystemStore((state) => state.check);
 
-  const [menuOpen, setMenuOpen] = useState(false);
-
   return (
-    <header className="sticky top-0 z-30 border-b border-edge bg-ink/80 backdrop-blur">
+    <header role="banner" className="sticky top-0 z-30 border-b border-white/[0.06] bg-ink/75 backdrop-blur-xl">
       <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
-        <button
-          type="button"
-          onClick={() => setMenuOpen((open) => !open)}
-          aria-expanded={menuOpen}
-          aria-label="Toggle navigation"
-          className="hw-focus -ml-1 rounded-lg p-2 text-slate-400 hover:bg-panelsoft hover:text-slate-100 md:hidden"
-        >
-          <Icon name="menu" size={18} />
-        </button>
-
         <Link href="/" aria-label="Re-Hardwire home" className="hw-focus shrink-0 rounded-lg md:hidden">
           <Image src="/logo.svg" alt="" width={32} height={32} priority />
         </Link>
@@ -49,9 +36,19 @@ export function Header() {
             {meta?.title.replace(`${config.app.name} - `, '') ?? active?.label ?? config.app.name}
           </h1>
           <p className="hidden truncate text-xs text-slate-500 sm:block">
-            {meta?.description ?? 'Resilience coaching, routed turn by turn.'}
+            {meta?.description ?? 'Guided self-help practices, with optional chat when available.'}
           </p>
         </div>
+
+        <a
+          href="tel:988"
+          aria-label="Call 988 in the United States for emotional crisis support"
+          title="U.S. 988 crisis support · a phone connection is required"
+          className="hw-focus inline-flex h-9 shrink-0 items-center rounded-lg border border-alarm/25 bg-alarm/5 px-2.5 text-xs font-semibold text-alarm transition-colors hover:bg-alarm/10 sm:px-3"
+        >
+          <span className="sm:hidden">988</span>
+          <span className="hidden sm:inline">U.S. 988</span>
+        </a>
 
         <Badge tone={STATUS_TONE[status]} className="hidden sm:inline-flex">
           {status}
@@ -69,37 +66,6 @@ export function Header() {
         </Button>
       </div>
 
-      {menuOpen && (
-        <nav className="hw-scroll max-h-[60vh] overflow-y-auto border-t border-edge px-3 pb-3 md:hidden">
-          {routes.map((group) => (
-            <div key={group.label} className="pt-3">
-              <p className="hw-label mb-1.5 px-1">{group.label}</p>
-              <ul className="grid grid-cols-2 gap-1.5">
-                {group.items.map((item) => {
-                  const isActive = active?.href === item.href;
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        onClick={() => setMenuOpen(false)}
-                        className={[
-                          'hw-focus flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs',
-                          isActive
-                            ? 'bg-signal-500/10 text-signal-200'
-                            : 'text-slate-400 hover:bg-panelsoft hover:text-slate-100',
-                        ].join(' ')}
-                      >
-                        <Icon name={toIconName(item.icon)} size={15} />
-                        <span className="truncate">{item.label}</span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </nav>
-      )}
     </header>
   );
 }

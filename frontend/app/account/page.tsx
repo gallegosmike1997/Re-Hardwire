@@ -1,71 +1,48 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Input, Toggle } from '@/components/ui/Input';
 import { Notice, StatTile } from '@/components/ui/StatTile';
+import { useProfileStore } from '@/state/useProfileStore';
 
-/** Permission keys kept in sync with the backend profile defaults. */
-const PERMISSION_KEYS: Array<{ key: string; label: string; description: string }> = [
-  { key: 'chat', label: 'Coaching chat', description: 'Talk with the routing engine.' },
-  { key: 'tts', label: 'Voice replies', description: 'Render coach replies as audio.' },
-  { key: 'voice_input', label: 'Voice input', description: 'Dictate turns with the microphone.' },
-  { key: 'history', label: 'Session history', description: 'Store conversations on device.' },
-  { key: 'analytics', label: 'Local analytics', description: 'Keep routing statistics locally.' },
+const PERMISSIONS = [
+  { key: 'chat', label: 'Coaching chat', description: 'Talk with the configured coaching service.' },
+  { key: 'tts', label: 'Voice replies', description: 'Read replies aloud with device speech.' },
+  { key: 'voice_input', label: 'Voice input', description: 'Dictate turns when your device supports it.' },
+  { key: 'history', label: 'Session history', description: 'Keep saved conversations on this device.' },
+  { key: 'analytics', label: 'Local analytics', description: 'Keep routing statistics on this device.' },
 ];
 
-interface Profile {
-  id: string;
-  name: string;
-  email: string;
-  preferences: Record<string, unknown>;
-  permissions: string[];
-  createdAt: string;
-}
-
 export default function AccountPage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const profile = useProfileStore((state) => state.profile);
+  const isLoading = useProfileStore((state) => state.isLoading);
+  const isSaving = useProfileStore((state) => state.isSaving);
+  const error = useProfileStore((state) => state.error);
+  const loadProfile = useProfileStore((state) => state.loadProfile);
+  const updateProfile = useProfileStore((state) => state.updateProfile);
+  const profileName = profile?.name;
+  const profileEmail = profile?.email;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const res = await fetch('/api/profile');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as Profile;
-      setProfile(data);
-      setName(data.name);
-      setEmail(data.email);
-    } catch {
-      setError('Profile service unreachable. Start the backend and retry.');
-    }
-  }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadProfile();
+  }, [loadProfile]);
+
+  // The editable form mirrors profile data after the client store loads it.
+  useEffect(() => {
+    if (profileName === undefined || profileEmail === undefined) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setName(profileName);
+    setEmail(profileEmail);
+  }, [profileName, profileEmail]);
 
   const save = async () => {
-    setSaving(true);
     setSaved(false);
-    try {
-      const res = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setProfile((await res.json()) as Profile);
-      setSaved(true);
-    } catch {
-      setError('Could not save the profile.');
-    } finally {
-      setSaving(false);
-    }
+    await updateProfile({ name, email });
+    setSaved(true);
   };
 
   const togglePermission = async (key: string, enabled: boolean) => {
@@ -73,30 +50,18 @@ export default function AccountPage() {
     const permissions = enabled
       ? [...profile.permissions, key]
       : profile.permissions.filter((item) => item !== key);
-    setProfile({ ...profile, permissions });
-    try {
-      const res = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ permissions }),
-      });
-      if (res.ok) setProfile((await res.json()) as Profile);
-    } catch {
-      setError('Could not sync permissions.');
-    }
+    await updateProfile({ permissions });
   };
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 p-4 sm:p-6">
       <header className="space-y-1">
         <h1 className="text-xl font-semibold tracking-tight text-slate-100">Account</h1>
-        <p className="text-sm text-slate-500">
-          Who the coach is talking to, and what the app is allowed to do.
-        </p>
+        <p className="text-sm text-slate-500">Your profile and optional capabilities are saved on this device.</p>
       </header>
 
-      {error && <Notice tone="error">{error}</Notice>}
-      {saved && <Notice tone="success">Profile saved.</Notice>}
+      {error && <Notice tone="warn">{error}</Notice>}
+      {saved && <Notice tone="success">Profile saved on this device.</Notice>}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <StatTile
@@ -107,7 +72,7 @@ export default function AccountPage() {
         />
         <StatTile
           label="Permissions granted"
-          value={profile ? `${profile.permissions.length} / ${PERMISSION_KEYS.length}` : '---'}
+          value={profile ? `${profile.permissions.length} / ${PERMISSIONS.length}` : '---'}
           icon="check"
           tone="win"
         />
@@ -117,41 +82,31 @@ export default function AccountPage() {
         <h2 className="flex items-center gap-2 text-sm font-medium text-slate-200">
           <Icon name="person" size={16} /> Identity
         </h2>
-        <Input
-          label="Name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="Operator"
-        />
-        <Input
-          label="Email"
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="operator@re-hardwire.local"
-        />
+        <Input label="Name" value={name} onChange={(event) => setName(event.target.value)} placeholder="You" />
+        <Input label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Optional" />
         <button
           type="button"
           onClick={() => void save()}
-          disabled={saving || !profile}
+          disabled={isSaving || !profile}
           className="inline-flex items-center gap-2 rounded-lg bg-signal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-signal-500 disabled:opacity-50"
         >
           <Icon name="check" size={15} />
-          {saving ? 'Saving…' : 'Save profile'}
+          {isSaving ? 'Saving…' : 'Save profile'}
         </button>
+        {isLoading && <p className="text-xs text-slate-500">Checking for a synced profile…</p>}
       </section>
 
       <section className="space-y-3">
         <h2 className="flex items-center gap-2 text-sm font-medium text-slate-200">
-          <Icon name="shield" size={16} /> Permissions
+          <Icon name="shield" size={16} /> Optional capabilities
         </h2>
-        {PERMISSION_KEYS.map((item) => (
+        {PERMISSIONS.map((item) => (
           <Toggle
             key={item.key}
             label={item.label}
             description={item.description}
-            checked={profile ? profile.permissions.includes(item.key) : false}
-            disabled={!profile}
+            checked={profile?.permissions.includes(item.key) ?? false}
+            disabled={isSaving || !profile}
             onChange={(next) => void togglePermission(item.key, next)}
           />
         ))}

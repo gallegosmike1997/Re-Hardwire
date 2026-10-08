@@ -40,7 +40,9 @@ export default function DevPage() {
     }
   }, []);
 
+  // Start the health check after mount; it updates the request's loading state.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void check();
   }, [check]);
 

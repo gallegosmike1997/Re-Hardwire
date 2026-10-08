@@ -30,6 +30,7 @@ export const config = {
     protocolKey: 're-hardwire-protocol',
     uiPrefsKey: 're-hardwire-ui-prefs',
     winsKey: 're-hardwire-wins',
+    supportPlanKey: 're-hardwire-support-plan',
   },
 } as const;
 

@@ -1,9 +1,9 @@
 /**
  * Protocol selection and routing-preview state.
  *
- * `catalog` is the five-level Re-Hardwire protocol ladder fetched from the
- * backend. `preview` holds the most recent routing decision so the Lab and the
- * Protocol pages can render the engine's reasoning without re-querying.
+ * `catalog` is the five-level Re-Hardwire protocol ladder, fetched from the
+ * backend when available and bundled locally as a fallback. `preview` holds
+ * the most recent routing decision so the Lab can render it without re-querying.
  */
 import { create } from 'zustand';
 import { api, type RouteResponse } from '@/lib/api';
@@ -17,6 +17,26 @@ export interface ProtocolLevel {
   description: string;
   tags: string[];
   intensity: number;
+}
+
+const LOCAL_PROTOCOLS: ProtocolLevel[] = [
+  { name: 'Stabilise & Breathe', level: 1, focus: 'safety', description: 'Down-regulate first. Short breath cycles, no problem solving yet.', tags: ['grounding', 'breath', 'safety'], intensity: 2 },
+  { name: 'Ground & Regulate', level: 2, focus: 'regulation', description: 'Bring the nervous system back into range before any forward motion.', tags: ['grounding', 'regulation', 'routine'], intensity: 3 },
+  { name: 'Resilience Builder Level 3', level: 3, focus: 'stability', description: 'Steady load, steady reps. Build the baseline that survives bad days.', tags: ['mindset', 'stability', 'focus'], intensity: 5 },
+  { name: 'Momentum & Load', level: 4, focus: 'growth', description: 'Push into stretch while protecting recovery windows.', tags: ['momentum', 'growth', 'discipline'], intensity: 7 },
+  { name: 'Pressure Performance', level: 5, focus: 'performance', description: 'High-load execution with active monitoring for overload signals.', tags: ['performance', 'pressure', 'execution'], intensity: 9 },
+];
+
+/** Convert historical selections (some versions stored a whole protocol object) to a name. */
+function protocolName(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (!value || typeof value !== 'object') return '';
+
+  const record = value as Record<string, unknown>;
+  for (const key of ['name', 'protocol', 'selected']) {
+    if (typeof record[key] === 'string') return (record[key] as string).trim();
+  }
+  return '';
 }
 
 export interface ProtocolState {
@@ -44,8 +64,12 @@ export const useProtocolStore = create<ProtocolState>((set, get) => ({
   error: null,
 
   hydrate: () => {
-    const selected = getStorage<string>(config.storage.protocolKey);
-    set({ selected: selected ?? '' });
+    const saved = getStorage<unknown>(config.storage.protocolKey);
+    const selected = protocolName(saved);
+    set({ selected });
+    if (selected && typeof saved !== 'string') {
+      setStorage(config.storage.protocolKey, selected);
+    }
   },
 
   loadCatalog: async () => {
@@ -54,7 +78,9 @@ export const useProtocolStore = create<ProtocolState>((set, get) => ({
 
     const response = await api.get<ProtocolLevel[]>('/api/route/protocols');
     if (!response.success || !response.data) {
-      set({ isLoading: false, error: response.error ?? 'Could not load protocols.' });
+      const selected = get().selected || LOCAL_PROTOCOLS[2].name;
+      set({ catalog: LOCAL_PROTOCOLS, selected, isLoading: false, error: null });
+      setStorage(config.storage.protocolKey, selected);
       return;
     }
 

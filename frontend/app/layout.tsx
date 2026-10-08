@@ -5,11 +5,11 @@ import { config } from '@/lib/config';
 
 export const metadata: Metadata = {
   title: {
-    default: `${config.app.name} - Resilience Coaching`,
+    default: `${config.app.name} - Guided Self-Help`,
     template: `%s | ${config.app.name}`,
   },
   description:
-    'AI-powered resilience coaching: route every conversation to the right protocol and build back the baseline.',
+    'A device-first library of guided self-help practices, with optional chat when a backend is available.',
   applicationName: config.app.name,
   manifest: '/manifest.webmanifest',
   icons: { icon: '/logo.svg', apple: '/logo.svg' },

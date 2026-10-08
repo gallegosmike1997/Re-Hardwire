@@ -1,9 +1,8 @@
 /**
  * Conversation state for the chat surface.
  *
- * History is persisted locally through `lib/storage` and mirrored to the
- * backend through `api.saveHistory`, so a session survives both a refresh and
- * a device switch.
+ * Transcripts are persisted locally through `lib/storage`; users can also
+ * save sessions to the backend for access on another device.
  */
 import { create } from 'zustand';
 import { api, type HistoryEntry, type LLMMessage, type RouteResponse } from '@/lib/api';
@@ -43,6 +42,18 @@ function makeSessionId(): string {
 
 function stamp(): string {
   return new Date().toISOString();
+}
+
+function offlineCheckIn(): LLMMessage {
+  return {
+    role: 'assistant',
+    content: [
+      'OFFLINE CHECK-IN',
+      'The coach service is unavailable, so I can’t interpret your message or give a personal response. I won’t guess. You can still choose a short guided practice on this device.',
+      'If you may be in immediate danger, contact local emergency services. In the U.S., call or text 988 for emotional crisis support when a phone connection is available.',
+    ].join('\n\n'),
+    created_at: stamp(),
+  };
 }
 
 /** Read the persisted transcript, guarding against malformed payloads. */
@@ -90,6 +101,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   newSession: () => {
     if (get().isSending) return;
+    const previous = get();
+    if (previous.messages.length) {
+      useHistoryStore.getState().archiveLocal({
+        sessionId: previous.sessionId,
+        messages: previous.messages,
+        createdAt: stamp(),
+        ...(previous.lastRoute?.protocol ? { protocolUsed: previous.lastRoute.protocol } : {}),
+      });
+    }
     useHistoryStore.getState().setActive(null);
     removeStorage(config.storage.conversationKey);
     set({
@@ -114,6 +134,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       sessionId: get().sessionId,
     });
 
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      set({ messages: [...transcript, offlineCheckIn()], isSending: false, error: null, lastRoute: null });
+      setStorage(config.storage.conversationKey, {
+        messages: get().messages, sessionId: get().sessionId,
+      });
+      return;
+    }
+
     const controller = new AbortController();
     activeRequest = controller;
     const timeout = setTimeout(() => controller.abort(), 180000);
@@ -128,10 +156,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         content += delta;
         set({ messages: [...transcript, { role: 'assistant', content, created_at }] });
       }, (route) => set({ lastRoute: route }));
-    } catch (error) {
-      set({ error: controller.signal.aborted
-        ? 'Response stopped or timed out. Retry to regenerate it.'
-        : error instanceof Error ? error.message : 'The coach did not respond.' });
+    } catch {
+      if (controller.signal.aborted) {
+        set({ error: 'Response stopped or timed out. Retry to regenerate it.' });
+      } else {
+        set({ messages: [...transcript, offlineCheckIn()], error: null, lastRoute: null });
+      }
     } finally {
       clearTimeout(timeout);
       activeRequest = null;
@@ -156,16 +186,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
   persist: async () => {
     const { messages, sessionId, lastRoute } = get();
     if (!messages.length || get().isSending) return;
+    const createdAt = stamp();
+    const localHistoryKey = `${config.storage.conversationKey}-history`;
+    const cached = getStorage<HistoryEntry[]>(localHistoryKey) ?? [];
+    const localEntry: HistoryEntry = {
+      id: `local_${sessionId}`,
+      sessionId,
+      messages,
+      createdAt,
+      ...(lastRoute?.protocol ? { protocolUsed: lastRoute.protocol } : {}),
+    };
+    setStorage(localHistoryKey, [localEntry, ...cached.filter((entry) => entry.sessionId !== sessionId)]);
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await useHistoryStore.getState().refresh();
+      set({ error: null });
+      return;
+    }
+
     const response = await api.saveHistory({
       sessionId,
       messages,
-      createdAt: stamp(),
+      createdAt,
       ...(lastRoute?.protocol ? { protocolUsed: lastRoute.protocol } : {}),
     });
     if (!response.success) {
-      set({ error: response.error ?? 'Could not save session.' });
+      await useHistoryStore.getState().refresh();
+      set({ error: null });
       return;
     }
+    const updatedCache = getStorage<HistoryEntry[]>(localHistoryKey) ?? [];
+    setStorage(localHistoryKey, updatedCache.filter((entry) => entry.sessionId !== sessionId));
     await useHistoryStore.getState().refresh();
   },
 

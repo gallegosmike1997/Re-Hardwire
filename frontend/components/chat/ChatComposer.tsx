@@ -42,11 +42,13 @@ export function ChatComposer() {
   const [voiceError, setVoiceError] = useState('');
   const [voiceSupported, setVoiceSupported] = useState(false);
 
+  // Browser capability detection must run client-side to keep server rendering stable.
   useEffect(() => {
     const globalRef = window as unknown as {
       SpeechRecognition?: new () => SpeechRecognitionLike;
       webkitSpeechRecognition?: new () => SpeechRecognitionLike;
     };
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setVoiceSupported(
       Boolean(globalRef.SpeechRecognition ?? globalRef.webkitSpeechRecognition) &&
         config.features.voiceInput,
@@ -56,7 +58,6 @@ export function ChatComposer() {
   useEffect(() => {
     if (!voiceEnabled || isSending) {
       recognitionRef.current?.stop();
-      setListening(false);
     }
   }, [voiceEnabled, isSending]);
   useEffect(() => () => {

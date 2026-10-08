@@ -26,7 +26,8 @@ export type IconName =
   | 'play'
   | 'stop'
   | 'activity'
-  | 'menu';
+  | 'menu'
+  | 'close';
 
 const PATHS: Record<IconName, string> = {
   home: 'M3 10.5 12 3l9 7.5M5.5 9.5V20h13V9.5',
@@ -49,6 +50,7 @@ const PATHS: Record<IconName, string> = {
   stop: 'M6 6h12v12H6z',
   activity: 'M22 12h-4l-3 8-4-16-3 8H2',
   menu: 'M4 7h16M4 12h16M4 17h16',
+  close: 'm6 6 12 12M18 6 6 18',
 };
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

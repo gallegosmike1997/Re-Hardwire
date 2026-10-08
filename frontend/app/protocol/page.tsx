@@ -1,38 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Badge } from '@/components/ui/Badge';
-
-interface Protocol {
-  name: string;
-  level: number;
-  summary?: string;
-  description?: string;
-  tags?: string[];
-}
+import { useProtocolStore } from '@/state/useProtocolStore';
 
 export default function ProtocolPage() {
-  const [protocols, setProtocols] = useState<Protocol[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [active, setActive] = useState<Protocol | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/route/protocols', { cache: 'no-store' });
-      if (!response.ok) throw new Error(`catalogue request failed (${response.status})`);
-      const list = (await response.json()) as Protocol[];
-      setProtocols(list);
-      setActive((current) => current ?? list[0] ?? null);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Failed to load the protocol catalogue');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const protocols = useProtocolStore((state) => state.catalog);
+  const error = useProtocolStore((state) => state.error);
+  const loading = useProtocolStore((state) => state.isLoading);
+  const load = useProtocolStore((state) => state.loadCatalog);
+  const selectedProtocol = useProtocolStore((state) => state.selected);
+  const selectProtocol = useProtocolStore((state) => state.select);
+  const active = protocols.find((protocol) => protocol.name === selectedProtocol) ?? null;
 
   useEffect(() => {
     void load();
@@ -42,12 +22,9 @@ export default function ProtocolPage() {
     <div className="mx-auto w-full max-w-4xl space-y-6 p-4 sm:p-6">
       <header className="space-y-1">
         <p className="hw-label">Protocol</p>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-100">
-          The five levels
-        </h1>
-        <p className="text-sm leading-relaxed text-slate-500">
-          The router picks one of these for every turn. Lower levels strip load; higher
-          levels build capability.
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-100">The five levels</h1>
+        <p className="max-w-2xl text-sm leading-relaxed text-slate-500">
+          A local reference for Re-Hardwire’s coaching ladder. The catalogue stays available when the coach service is offline.
         </p>
       </header>
 
@@ -67,7 +44,7 @@ export default function ProtocolPage() {
               <button
                 type="button"
                 aria-expanded={selected}
-                onClick={() => setActive(selected ? null : protocol)}
+                onClick={() => selectProtocol(selected ? '' : protocol.name)}
                 className={[
                   'hw-focus w-full rounded-xl border px-4 py-3 text-left transition-colors',
                   selected
@@ -82,36 +59,25 @@ export default function ProtocolPage() {
                     </span>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-slate-100">{protocol.name}</p>
-                      <p className="truncate text-xs text-slate-600">
-                        {protocol.summary ?? protocol.description ?? ''}
-                      </p>
+                      <p className="truncate text-xs text-slate-600">{protocol.focus}</p>
                     </div>
                   </div>
                   <Icon
                     name="chevron"
                     size={15}
-                    className={[
-                      'shrink-0 text-slate-600 transition-transform',
-                      selected ? 'rotate-90' : '',
-                    ].join(' ')}
+                    className={['shrink-0 text-slate-600 transition-transform', selected ? 'rotate-90' : ''].join(' ')}
                   />
                 </div>
               </button>
 
               {selected && (
                 <div className="mx-2 space-y-3 rounded-b-xl border border-t-0 border-edgesoft bg-panelsoft/20 px-4 py-3">
-                  {(protocol.tags ?? []).length > 0 && (
+                  {protocol.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                      {protocol.tags?.map((tag) => (
-                        <Badge key={tag} tone="signal">
-                          {tag}
-                        </Badge>
-                      ))}
+                      {protocol.tags.map((tag) => <Badge key={tag} tone="signal">{tag}</Badge>)}
                     </div>
                   )}
-                  {protocol.description && (
-                    <p className="text-xs leading-relaxed text-slate-400">{protocol.description}</p>
-                  )}
+                  <p className="text-xs leading-relaxed text-slate-400">{protocol.description}</p>
                 </div>
               )}
             </article>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { formatTime, humanize } from '@/lib/format';
 import { useProfileStore } from '@/state/useProfileStore';
 import { Badge, Icon, toneForAction, toneForState } from '@/components/ui';
@@ -16,6 +17,8 @@ export interface ChatMessageProps {
 
 export function ChatMessage({ message, route, isStreaming = false }: ChatMessageProps) {
   const isUser = message.role === 'user';
+  const isOfflineReply = !isUser && message.content.startsWith('OFFLINE CHECK-IN\n\n');
+  const visibleContent = isOfflineReply ? message.content.slice('OFFLINE CHECK-IN\n\n'.length) : message.content;
   const showSignals = useProfileStore((state) => state.ui.showSignals);
   const [speaking, setSpeaking] = useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
 
@@ -23,6 +26,8 @@ export function ChatMessage({ message, route, isStreaming = false }: ChatMessage
   const enabled = Boolean(profile?.preferences.ttsEnabled && profile.permissions.includes('tts'));
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const [supported, setSupported] = useState(false);
+  // Browser capability detection must run client-side to keep server rendering stable.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setSupported('speechSynthesis' in window); }, []);
   useEffect(() => {
     return () => {
@@ -94,11 +99,17 @@ export function ChatMessage({ message, route, isStreaming = false }: ChatMessage
               : 'border-edge bg-panel/70 text-slate-200',
           ].join(' ')}
         >
-          {message.content.split('\n\n').map((block, index) => (
+          {isOfflineReply && <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.15em] text-warmth">Offline check-in</p>}
+          {visibleContent.split('\n\n').map((block, index) => (
             <p key={index} className={index > 0 ? 'mt-2.5' : undefined}>
               {block}
             </p>
           ))}
+          {isOfflineReply && (
+            <Link href="/tools" className="hw-focus mt-3 inline-flex rounded-lg border border-signal-500/30 bg-signal-500/10 px-3 py-2 text-xs font-medium text-signal-300 hover:bg-signal-500/15">
+              Open guided tools
+            </Link>
+          )}
           {isStreaming && (
             <span
               className="ml-0.5 inline-block h-3.5 w-[3px] animate-blink rounded-sm bg-signal-400 align-middle"

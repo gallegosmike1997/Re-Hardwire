@@ -19,6 +19,7 @@ const OPTIONS: { value: Theme; label: string }[] = [
 export function ThemeController({ controls = false }: { controls?: boolean }) {
   const theme = useProfileStore((state) => state.ui.theme);
   const reducedMotion = useProfileStore((state) => state.ui.reducedMotion);
+  const textSize = useProfileStore((state) => state.ui.textSize);
   const updateUi = useProfileStore((state) => state.updateUi);
 
   useEffect(() => {
@@ -30,6 +31,10 @@ export function ThemeController({ controls = false }: { controls?: boolean }) {
   useEffect(() => {
     document.documentElement.classList.toggle('motion-off', reducedMotion);
   }, [reducedMotion]);
+
+  useEffect(() => {
+    document.documentElement.dataset.textSize = textSize;
+  }, [textSize]);
 
   if (!controls) return null;
 

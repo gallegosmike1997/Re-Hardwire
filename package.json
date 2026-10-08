@@ -1,0 +1,14 @@
+{
+  "name": "re-hardwire",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Root-level commands for the Re-Hardwire app",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "setup:backend": "node scripts/setup-backend.js",
+    "build": "npm --prefix frontend run build",
+    "build:capacitor": "npm --prefix frontend run build:capacitor",
+    "lint": "npm --prefix frontend run lint",
+    "typecheck": "npm --prefix frontend run typecheck"
+  }
+}

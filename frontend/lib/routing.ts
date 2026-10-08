@@ -19,6 +19,8 @@ export const routes: RouteGroup[] = [
     label: 'Main',
     items: [
       { label: 'Home', href: '/', icon: 'home', section: 'main' },
+      { label: 'Guided tools', href: '/tools', icon: 'activity', section: 'main' },
+      { label: 'My support plan', href: '/support-plan', icon: 'shield', section: 'main' },
       { label: 'Chat', href: '/chat', icon: 'chat', section: 'main' },
       { label: 'Protocol', href: '/protocol', icon: 'shield', section: 'main' },
       { label: 'Success', href: '/success', icon: 'trophy', section: 'main' },
@@ -50,8 +52,12 @@ export function getActiveRoute(pathname: string): NavItem | undefined {
 }
 
 export const pageMeta: Record<string, { title: string; description: string }> = {
-  '/': { title: 'Re-Hardwire - Dashboard', description: 'AI-powered resilience coaching dashboard' },
-  '/chat': { title: 'Re-Hardwire - Chat', description: 'Talk to your AI resilience coach' },
+  '/': { title: 'Re-Hardwire - Dashboard', description: 'Guided self-help practices and optional coaching' },
+  '/chat': { title: 'Re-Hardwire - Chat', description: 'Check in with the coach service or use on-device tools offline' },
+  '/tools': { title: 'Re-Hardwire - Guided tools', description: 'Guided coping practices that work offline' },
+  '/tools/': { title: 'Re-Hardwire - Guided tools', description: 'Guided coping practices that work offline' },
+  '/support-plan': { title: 'Re-Hardwire - My support plan', description: 'A personal support plan saved on this device' },
+  '/support-plan/': { title: 'Re-Hardwire - My support plan', description: 'A personal support plan saved on this device' },
   '/protocol': { title: 'Re-Hardwire - Protocol', description: 'Select and configure your resilience protocol' },
   '/success': { title: 'Re-Hardwire - Success', description: 'Your wins and progress tracker' },
   '/account': { title: 'Re-Hardwire - Account', description: 'Manage your account and permissions' },
