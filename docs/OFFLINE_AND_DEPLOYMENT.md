@@ -8,7 +8,7 @@ Re-Hardwire's guided practice library, local profile, interface preferences, and
 2. Build and serve the web app from a static host that supports HTTPS. The service worker needs HTTPS (localhost is also supported by browsers).
 3. Open the app while connected and use **Prepare for offline** on the home screen. It caches and verifies core pages and app files. Reopen it from the installed home-screen shortcut for offline use.
 
-Static hosting prices and limits vary by provider. The static app has no required hosted model or paid service for its guided tools. Chat and cross-device profile/history sync need a running backend; connect one with `NEXT_PUBLIC_API_BASE_URL` at build time. Never put provider API secrets in that public frontend setting.
+The static app has no required hosted model or paid service for its guided tools. Production builds do not contact localhost; chat and cross-device profile/history sync remain unavailable unless a reviewed API URL is explicitly configured at build time. Never put provider API secrets in that public frontend setting. See [release and hosting setup](RELEASE_AND_DEPLOYMENT.md) for the Cloudflare Pages and native app steps.
 
 The backend is not ready for public deployment: it stores profiles and history in shared JSON files and has no enforced user authentication or per-user authorization. It fails to start with `APP_ENV=production` until those controls are implemented. A static frontend can be hosted independently, but do not connect it to an internet-accessible instance of this prototype.
 

@@ -123,6 +123,9 @@ class ApiClient {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+    if (!this.baseUrl) {
+      return { success: false, error: 'The coach service is not configured for this app build.' };
+    }
     const url = `${this.baseUrl}${endpoint}`;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {

@@ -30,6 +30,10 @@ export function SemanticRoutingPanel({ online }: { online: boolean }) {
 
   const run = useCallback(async () => {
     if (!text.trim() || busy) return;
+    if (!config.api.baseUrl) {
+      setError('The routing service is not configured for this app build.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {

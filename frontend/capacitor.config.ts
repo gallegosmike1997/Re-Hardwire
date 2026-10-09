@@ -5,7 +5,6 @@ const config: CapacitorConfig = {
   appName: 'Re-Hardwire',
   // Matches `next build` with BUILD_TARGET=capacitor (output: 'export').
   webDir: 'out',
-  bundledWebRuntime: false,
   server: {
     androidScheme: 'https',
   },

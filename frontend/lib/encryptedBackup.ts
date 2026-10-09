@@ -33,10 +33,16 @@ function fromBase64(value: string): Uint8Array {
   return bytes;
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const owned = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(owned).set(bytes);
+  return owned;
+}
+
 async function deriveKey(passphrase: string, salt: Uint8Array, iterations: number, webCrypto: Crypto): Promise<CryptoKey> {
   const material = await webCrypto.subtle.importKey('raw', encoder.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
   return webCrypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: toArrayBuffer(salt), iterations, hash: 'SHA-256' },
     material,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -69,7 +75,9 @@ export async function createEncryptedBackup(passphrase: string): Promise<string>
   if (plaintext.byteLength > MAX_BACKUP_PLAINTEXT_BYTES) {
     throw new Error('Local data is too large for one encrypted backup. Export or clear older data first.');
   }
-  const ciphertext = await webCrypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
+  const ciphertext = await webCrypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, plaintext,
+  );
 
   const backup = JSON.stringify({
     format: BACKUP_FORMAT,
@@ -115,7 +123,9 @@ export async function restoreEncryptedBackup(backupText: string, passphrase: str
     const ciphertext = fromBase64(envelope.ciphertext);
     if (salt.length !== 16 || iv.length !== 12) throw new Error('Invalid backup parameters.');
     const key = await deriveKey(passphrase, salt, iterations, webCrypto);
-    const plaintext = await webCrypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+    const plaintext = await webCrypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, toArrayBuffer(ciphertext),
+    );
     payloadText = decoder.decode(plaintext);
   } catch {
     throw new Error('Could not unlock this backup. Check the passphrase and try again.');

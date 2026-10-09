@@ -1,0 +1,50 @@
+name: Beta iOS simulator build
+
+on:
+  push:
+    branches: [beta]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios-simulator:
+    name: iOS simulator app
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Build bundled app and sync iOS
+        working-directory: frontend
+        run: |
+          npm run build:capacitor
+          npx cap sync ios
+      - name: Build unsigned simulator app
+        working-directory: frontend
+        run: >-
+          xcodebuild
+          -workspace ios/App/App.xcworkspace
+          -scheme App
+          -sdk iphonesimulator
+          -configuration Debug
+          -derivedDataPath build
+          CODE_SIGNING_ALLOWED=NO
+      - name: Package simulator app
+        working-directory: frontend
+        run: ditto -c -k --sequesterRsrc --keepParent build/Build/Products/Debug-iphonesimulator/App.app build/Re-Hardwire-beta-ios-simulator.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: re-hardwire-beta-ios-simulator
+          path: frontend/build/Re-Hardwire-beta-ios-simulator.zip
+          if-no-files-found: error
+          retention-days: 14

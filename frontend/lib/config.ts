@@ -3,7 +3,10 @@
  */
 export const config = {
   api: {
-    baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000',
+    // Local development may use its companion API. Production and Capacitor
+    // builds stay offline-first unless an API endpoint is explicitly set.
+    baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
+      || (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : ''),
     endpoints: {
       health: '/health',
       route: '/api/route',

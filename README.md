@@ -10,6 +10,7 @@ The app is for education and self-guided support. It does not diagnose, provide 
 - `backend/`: FastAPI prototype for optional routing, chat, text-to-speech, profile, and history APIs.
 - `docs/CLINICAL_CONTENT.md`: source and review policy for the self-help library.
 - `docs/SECURITY_AND_PRIVACY.md`: local data behavior, secret handling, and deployment boundaries.
+- `docs/RELEASE_AND_DEPLOYMENT.md`: stable/beta branch flow and web/Android/iOS release setup.
 - `docs/API.md`: API discovery and versioned capabilities contract.
 - `docs/OFFLINE_AND_DEPLOYMENT.md`: offline and packaging notes.
 
@@ -73,7 +74,7 @@ npm run build:capacitor
 npx cap sync
 ```
 
-Add Android or iOS once with `npx cap add android` or `npx cap add ios`. Native builds require the platform's standard development tools. See [offline and deployment notes](docs/OFFLINE_AND_DEPLOYMENT.md).
+Android and iOS native projects are checked in under `frontend/android` and `frontend/ios`. After changing the web app, run `npx cap sync` from `frontend/` before opening them in Android Studio or Xcode. See the [release and deployment guide](docs/RELEASE_AND_DEPLOYMENT.md) and [offline notes](docs/OFFLINE_AND_DEPLOYMENT.md).
 
 ## Checks
 

@@ -5,6 +5,9 @@ export async function streamConversation(
   request: LLMRequest, signal: AbortSignal,
   onDelta: (text: string) => void, onRoute: (route: RouteResponse) => void,
 ): Promise<void> {
+  if (!config.api.baseUrl) {
+    throw new Error('The coach service is not configured for this app build. Guided practices remain available offline.');
+  }
   const response = await fetch(`${config.api.baseUrl}/api/llm/stream`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request), signal,
