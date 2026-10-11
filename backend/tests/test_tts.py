@@ -1,6 +1,8 @@
 """Tests for the TTS engine."""
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from app.core.config import settings
@@ -48,11 +50,16 @@ class TestSynthesize:
         assert written.exists()
         assert written.read_bytes()[:4] == b"RIFF"
 
-    def test_same_input_is_cached_to_one_file(self, audio_dir):
+    def test_same_input_produces_distinct_opaque_files(self, audio_dir):
+        # Filenames are intentionally opaque random names so the cache cannot
+        # fingerprint which text was spoken.
         first = tts.synthesize("identical text")
         second = tts.synthesize("identical text")
-        assert first["audioUrl"] == second["audioUrl"]
-        assert len(list(audio_dir.glob("*.wav"))) == 1
+        assert first["audioUrl"] != second["audioUrl"]
+        for result in (first, second):
+            name = result["audioUrl"].rsplit("/", 1)[-1]
+            assert re.fullmatch(r"[0-9a-f]{32}\.wav", name)
+        assert len(list(audio_dir.glob("*.wav"))) == 2
 
     def test_voice_override_is_reflected(self, audio_dir):
         result = tts.synthesize("hello", voice="warm-narrator")

@@ -31,3 +31,5 @@ venv/
 /.kombai/
 /.npm-cache/
 
+# IDE / editor state (JetBrains)
+.idea/

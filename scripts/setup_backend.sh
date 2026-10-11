@@ -3,7 +3,7 @@
 
 # Root backend folder
 mkdir -p ~/Re-Hardwire/backend
-cd ~/Re-Hardwire/backend
+cd ~/Re-Hardwire/backend || exit
 
 # App structure
 mkdir -p app/{api,core/{routing,llm,tts,storage},services}
