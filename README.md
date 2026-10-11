@@ -51,7 +51,7 @@ uvicorn app.main:app --reload
 
 Set `NEXT_PUBLIC_API_BASE_URL` when building the frontend if the API is hosted somewhere other than `http://localhost:8000`. This is a public URL setting; never put a provider key in a `NEXT_PUBLIC_*` variable or frontend source.
 
-The backend currently stores profile/history data in shared JSON files and does not provide production user authentication or per-user data isolation. It refuses to start when `APP_ENV=production` is set. Keep it on a trusted development machine. Do not expose it to the public internet or use it for real users until authentication, authorization, per-user storage, secure deployment configuration, and privacy controls are implemented and reviewed.
+The backend issues anonymous, device-scoped sessions (`POST /api/session`) and isolates profile and history records per verified subject, so one device cannot read another's data. Coach replies are personalised from the caller's own stored profile. This is still prototype-grade identity: the tokens are self-signed HMAC (opaque, no key rotation, no real identity provider) and data lives in local JSON files, so the backend refuses to start when `APP_ENV=production` is set. Keep it on a trusted development machine. Do not expose it to the public internet or use it for real users until a managed identity and durable, per-user storage replace these and the change has been reviewed.
 
 ## Offline behavior
 
