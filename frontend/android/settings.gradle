@@ -1,6 +1,23 @@
 plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
+
+// AGP 9 removed support for the legacy proguard-android.txt default rules
+// file, but the Capacitor 6 android library in node_modules still references
+// it. Patch the pristine npm copy in place so fresh installs and CI builds
+// evaluate cleanly under AGP 9.
+def capacitorLibraryBuild = new File(settingsDir, '../node_modules/@capacitor/android/capacitor/build.gradle')
+if (capacitorLibraryBuild.exists()) {
+    def original = capacitorLibraryBuild.getText('UTF-8')
+    def patched = original.replace(
+        "getDefaultProguardFile('proguard-android.txt')",
+        "getDefaultProguardFile('proguard-android-optimize.txt')"
+    )
+    if (patched != original) {
+        capacitorLibraryBuild.write(patched, 'UTF-8')
+    }
+}
+
 include ':app'
 apply from: 'capacitor.settings.gradle'
 if (file('capacitor-cordova-android-plugins/build.gradle').exists()) {
