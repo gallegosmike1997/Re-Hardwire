@@ -15,7 +15,7 @@ def provider_settings(monkeypatch):
 
 
 @pytest.mark.parametrize("provider", ["openai", "ollama"])
-def test_provider_through_chat_api(client, monkeypatch, provider):
+def test_provider_through_chat_api(client, auth_headers, monkeypatch, provider):
     monkeypatch.setattr(settings, "llm_provider", provider)
     calls = []
 
@@ -29,7 +29,7 @@ def test_provider_through_chat_api(client, monkeypatch, provider):
     response = client.post("/api/llm", json={
         "messages": [{"role": "user", "content": "A busy week", "created_at": "today"}],
         "protocol": "Ground & Regulate",
-    })
+    }, headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["content"] == "Try one manageable step."
     assert len(calls) == 1
@@ -46,8 +46,28 @@ def test_provider_through_chat_api(client, monkeypatch, provider):
     assert options["headers"] == ({"Authorization": "Bearer test-secret"} if provider == "openai" else {})
 
 
+def test_provider_prompt_includes_the_operator_name(client, auth_headers, monkeypatch):
+    client.put("/api/profile", json={"name": "Marcus"}, headers=auth_headers)
+    captured = {}
+
+    def post(url, **kwargs):
+        captured["system"] = kwargs["json"]["messages"][0]["content"]
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": "ok"}}]},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(llm.httpx, "post", post)
+    response = client.post(
+        "/api/llm", json={"messages": [{"role": "user", "content": "Hi"}]},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert "Marcus" in captured["system"]
+
+
 @pytest.mark.parametrize("failure", ["timeout", "http", "malformed", "empty"])
-def test_provider_failure_is_sanitized(client, monkeypatch, failure):
+def test_provider_failure_is_sanitized(client, auth_headers, monkeypatch, failure):
     def post(url, **kwargs):
         if failure == "timeout":
             raise httpx.ReadTimeout("test-secret private transcript")
@@ -58,7 +78,10 @@ def test_provider_failure_is_sanitized(client, monkeypatch, failure):
         )
 
     monkeypatch.setattr(llm.httpx, "post", post)
-    response = client.post("/api/llm", json={"messages": [{"role": "user", "content": "Hello"}]})
+    response = client.post(
+        "/api/llm", json={"messages": [{"role": "user", "content": "Hello"}]},
+        headers=auth_headers,
+    )
     assert response.status_code == 503
     assert "test-secret" not in response.text
     assert "private transcript" not in response.text
@@ -72,9 +95,12 @@ def test_crisis_never_calls_provider(monkeypatch, provider):
     assert llm.generate_response([{"role": "user", "content": "I want to hurt myself"}]) == llm.CRISIS_REPLY
 
 
-def test_missing_key_fails_without_network(client, monkeypatch):
+def test_missing_key_fails_without_network(client, auth_headers, monkeypatch):
     monkeypatch.setattr(settings, "llm_api_key", "")
     monkeypatch.setattr(llm.httpx, "post", lambda *a, **k: pytest.fail("Unexpected network request"))
-    response = client.post("/api/llm", json={"messages": [{"role": "user", "content": "Hello"}]})
+    response = client.post(
+        "/api/llm", json={"messages": [{"role": "user", "content": "Hello"}]},
+        headers=auth_headers,
+    )
     assert response.status_code == 503
     assert "API_KEY" in response.json()["detail"]

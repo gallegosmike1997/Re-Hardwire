@@ -11,6 +11,7 @@ from app.api.capabilities import router as capabilities_router
 from app.api.llm import router as llm_router
 from app.api.profile import router as profile_router
 from app.api.route import router as route_router
+from app.api.session import router as session_router
 from app.api.tts import router as tts_router
 from app.core.config import settings
 from app.services import analytics
@@ -18,9 +19,10 @@ from app.services import analytics
 
 if settings.app_env in {"prod", "production"}:
     raise RuntimeError(
-        "Production startup is disabled: the backend still uses shared JSON storage "
-        "and has no enforced authentication or per-user authorization. Keep it local "
-        "until those safeguards are implemented and reviewed."
+        "Production startup is disabled: the backend authenticates with self-signed "
+        "HMAC tokens (no key rotation, no real identity provider) and stores data in "
+        "plain JSON files. Keep it local until a managed identity and durable, "
+        "per-user storage replace them and that change has been reviewed."
     )
 if "*" in settings.cors_origins:
     raise RuntimeError("CORS_ORIGINS must list explicit trusted origins; wildcard access is disabled.")
@@ -145,6 +147,7 @@ def api_index() -> dict:
         "version": settings.version,
         "endpoints": {
             "health": "/health",
+            "session": "/api/session",
             "route": "/api/route",
             "protocols": "/api/route/protocols",
             "stats": "/api/route/stats",
@@ -159,6 +162,7 @@ def api_index() -> dict:
 
 # Routers. Paths are declared as "" so the mounted path is exactly
 # /api/<name>, matching the endpoint strings in frontend/lib/config.ts.
+app.include_router(session_router, prefix="/api/session")
 app.include_router(route_router, prefix="/api/route")
 app.include_router(llm_router, prefix="/api/llm")
 app.include_router(tts_router, prefix="/api/tts")
