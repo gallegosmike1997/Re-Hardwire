@@ -48,6 +48,9 @@ class Settings:
     profile_file = data_dir / "profile.json"
     analytics_file = data_dir / "analytics.json"
     audio_dir = data_dir / "audio"
+    #: Per-user stores live in ``users/<subject>/``; legacy shared files stay
+    #: at the paths above and are claimed once by the first anonymous session.
+    users_dir = data_dir / "users"
 
     default_protocol = os.getenv("DEFAULT_PROTOCOL", "Resilience Builder Level 3")
     history_limit = int(os.getenv("HISTORY_LIMIT", "100"))
@@ -74,6 +77,10 @@ class Settings:
         else secrets.token_urlsafe(32)
     )
     auth_token_ttl = int(os.getenv("AUTH_TOKEN_TTL", "86400"))
+    #: Anonymous device sessions live for this long before needing a refresh.
+    auth_session_ttl = int(os.getenv("AUTH_SESSION_TTL", str(30 * 86400)))
+    #: An expired session token may still be refreshed within this grace window.
+    auth_refresh_grace = int(os.getenv("AUTH_REFRESH_GRACE", str(7 * 86400)))
 
     default_permissions = _env_list(
         "DEFAULT_PERMISSIONS",
@@ -84,6 +91,7 @@ class Settings:
         """Create the data directories if they do not exist yet."""
         self.data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.audio_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.users_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         if os.name != "nt":
             os.chmod(self.data_dir, 0o700)
             os.chmod(self.audio_dir, 0o700)

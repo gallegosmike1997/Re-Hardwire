@@ -11,7 +11,7 @@ from app.core.config import settings
 
 import httpx
 
-from .prompts import build_messages, last_user_message
+from .prompts import build_messages, last_user_message, sanitise_operator_name
 
 CRISIS_TERMS = (
     "kill myself", "end my life", "suicide", "suicidal", "self harm",
@@ -63,6 +63,7 @@ def _local_response(
     protocol: Optional[str] = None,
     emotional_state: Optional[str] = None,
     next_action: Optional[str] = None,
+    profile: Optional[Mapping[str, object]] = None,
 ) -> str:
     """Compose a coach reply from the routing decision."""
     if is_crisis(user_text):
@@ -79,6 +80,12 @@ def _local_response(
         follow_up = "What feels hardest about taking that step?"
     if protocol:
         follow_up = f"With {protocol}, {follow_up[0].lower()}{follow_up[1:]}"
+
+    # The local scripted provider has no model to render the prompt, so the
+    # operator name is woven in here instead. One use per reply keeps it warm
+    # rather than mechanical.
+    name = sanitise_operator_name((profile or {}).get("name"))
+    reflection = f"{name}, {reflection[0].lower()}{reflection[1:]}" if name else reflection
     return f"{reflection} {follow_up}"
 
 
@@ -129,11 +136,13 @@ def stream_llm_response(
     protocol: Optional[str] = None,
     emotional_state: Optional[str] = None,
     next_action: Optional[str] = None,
+    profile: Optional[Mapping[str, object]] = None,
 ) -> str:
     """Return the assistant reply for a conversation.
 
     Signature is backwards compatible: ``stream_llm_response(messages)`` still
-    works exactly as it did before.
+    works exactly as it did before. ``profile`` personalises the system prompt
+    from the caller's stored profile.
     """
     message_list = [dict(message) for message in messages]
     user_text = last_user_message(message_list)
@@ -143,9 +152,11 @@ def stream_llm_response(
     if not user_text.strip():
         return DEFAULT_CONTENT
     if settings.llm_provider != "local":
-        return _remote_response(build_messages(message_list, protocol, emotional_state, next_action))
+        return _remote_response(
+            build_messages(message_list, protocol, emotional_state, next_action, profile)
+        )
 
-    return _local_response(user_text, protocol, emotional_state, next_action)
+    return _local_response(user_text, protocol, emotional_state, next_action, profile)
 
 
 def generate_response(
@@ -153,9 +164,10 @@ def generate_response(
     protocol: Optional[str] = None,
     emotional_state: Optional[str] = None,
     next_action: Optional[str] = None,
+    profile: Optional[Mapping[str, object]] = None,
 ) -> str:
     """Alias for :func:`stream_llm_response` with a non-streaming name."""
-    return stream_llm_response(messages, protocol, emotional_state, next_action)
+    return stream_llm_response(messages, protocol, emotional_state, next_action, profile)
 
 
 def stream_chunks(text: str) -> Iterator[str]:

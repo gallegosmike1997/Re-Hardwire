@@ -24,6 +24,8 @@ def capabilities() -> dict:
         "privacy": {
             "chatRequestSentToReplyService": True,
             "automaticClinicalReviewSharing": False,
-            "historyBackendHasPerUserIsolation": False,
+            "historyBackendHasPerUserIsolation": True,
+            "deviceSessionRequired": True,
+            "profileStorage": "local-json-per-device-subject",
         },
     }

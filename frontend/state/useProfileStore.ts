@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import { api, type UserProfile } from '@/lib/api';
 import { config } from '@/lib/config';
+import { clearSession } from '@/lib/session';
 import { getStorage, removeStorage, setStorage } from '@/lib/storage';
 
 export interface UiPreferences {
@@ -182,6 +183,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     setStorage(config.storage.profileKey, defaults);
     setStorage(PENDING_PROFILE_KEY, updates);
     set({ profile: defaults, error: 'Profile reset on this device.' });
+    // A reset abandons the previous device identity so backend data does not
+    // silently reattach to the new profile; a fresh session is minted on next use.
+    clearSession();
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       const response = await api.updateProfile(updates);
       if (response.success && response.data) {
