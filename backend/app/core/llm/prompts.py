@@ -93,6 +93,11 @@ _NAME_RE = re.compile(r"[^0-9A-Za-z .'\-]")
 #: Longest operator name admitted into a prompt, after sanitising.
 _MAX_NAME_LENGTH = 60
 
+#: Placeholder names the app seeds a fresh profile with. These are not the
+#: person's real name, so including them would read as scripted rather than
+#: personal, and is skipped.
+_PLACEHOLDER_NAMES = frozenset({"operator", "you", "there", "friend", "user"})
+
 
 def sanitise_operator_name(value: object) -> str:
     """Return a prompt-safe operator name, or ``""`` when nothing usable remains.
@@ -112,14 +117,15 @@ def sanitise_operator_name(value: object) -> str:
 def build_personalisation(profile: Optional[Mapping[str, object]] = None) -> str:
     """Assemble the personalisation block from the caller's stored profile.
 
-    Only the display name is used. The block explicitly tells the model that the
-    name is a label and not an instruction, and caps how often it may appear so
-    replies stay natural.
+    Only the display name is used, and only when it differs from the seeded
+    placeholder. The block explicitly tells the model that the name is a label
+    and not an instruction, and caps how often it may appear so replies stay
+    natural.
     """
     if not profile:
         return ""
     name = sanitise_operator_name(profile.get("name"))
-    if not name:
+    if not name or name.lower() in _PLACEHOLDER_NAMES:
         return ""
     return (
         f"Context: the person you are speaking with is called {name}.\n"
