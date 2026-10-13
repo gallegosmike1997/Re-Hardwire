@@ -8,7 +8,7 @@ Existing route, chat, TTS, profile, and history endpoints remain under `/api/<na
 
 ### Authentication and per-device isolation
 
-Every private route (`/api/llm`, `/api/llm/stream`, `/api/history`, `/api/profile`) requires an `Authorization: Bearer <token>` header. Obtain a token from `POST /api/session`, which mints an anonymous, device-scoped session and returns `{ token, subject }`. The frontend caches the token on-device, attaches it to every request, and refreshes it once on a `401` before retrying.
+Every private route (`/api/llm`, `/api/llm/stream`, `/api/history`, `/api/profile`) requires an `Authorization: Bearer <token>` header. Obtain a token from `POST /api/session`, which mints an anonymous, device-scoped session and returns `{ token, subject }`. The frontend caches the token on-device, attaches it to every request, and refreshes it once on a `401` before retrying. Refreshing rotates the token: `POST /api/session/refresh` issues a replacement for the same subject and revokes the presented token, so a superseded token no longer authorizes.
 
 The token is a self-signed HMAC session (opaque, no key rotation, no real identity provider) that intentionally still refuses `APP_ENV=production`. Profile and history records are namespaced per verified token subject, so one device cannot read or modify another device's data. Replies are personalised from the caller's own profile: the stored display name is sanitised into the system prompt and explicitly treated as a label, never an instruction.
 
