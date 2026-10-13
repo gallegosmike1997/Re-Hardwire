@@ -16,6 +16,7 @@ import base64
 import hashlib
 import hmac
 import json
+import secrets
 import time
 from typing import Any, Dict, Optional
 
@@ -51,6 +52,10 @@ def create_token(subject: str, ttl: Optional[int] = None, **claims: Any) -> str:
         "sub": subject,
         "iat": now,
         "exp": now + int(lifetime),
+        # A random id keeps tokens minted in the same second distinct, so
+        # revoking a superseded refresh token cannot invalidate its
+        # replacement when both share a timestamp.
+        "jti": secrets.token_hex(8),
         **claims,
     }
     payload = _b64encode(json.dumps(body, separators=(",", ":")).encode("utf-8"))
@@ -103,7 +108,9 @@ def refresh_session(token: str) -> Optional[Dict[str, Any]]:
     """Re-issue a session token for the same subject.
 
     Accepts an expired token only within the configured refresh grace window
-    so a device that was offline for a while keeps its identity.
+    so a device that was offline for a while keeps its identity. The presented
+    token is revoked when the replacement is issued, so a stolen pre-refresh
+    token cannot outlive the refresh that superseded it.
     """
     claims = verify_token(token, allow_expired=True)
     if claims is None:
@@ -116,6 +123,7 @@ def refresh_session(token: str) -> Optional[Dict[str, Any]]:
     if not users.is_valid_subject(subject):
         return None
     new_token = create_token(subject, ttl=settings.auth_session_ttl)
+    revoke_token(token)
     return {
         "token": new_token,
         "subject": subject,

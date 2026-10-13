@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { OfflineReadinessCard } from '@/components/offline/OfflineReadinessCard';
+import { MoodCheckInWidget } from '@/components/dashboard/MoodCheckInWidget';
+import { QuickWinWidget } from '@/components/dashboard/QuickWinWidget';
 
 const quickTools = [
   { title: 'Come back to right now', detail: 'Reconnect with the room around you', href: '/tools#grounding', kind: 'SETTLE', time: '2 min', icon: 'activity' },
@@ -41,6 +43,9 @@ export default function HomePage() {
             <Link href="/chat" className="hw-focus inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/[0.1] bg-ink/30 px-4 py-3 text-sm font-medium text-slate-200 transition-[transform,background-color,border-color] hover:border-white/[0.18] hover:bg-ink/55 active:scale-[0.98]">
               Talk it through <Icon name="chat" size={16} />
             </Link>
+            <Link href="/boundaries" className="hw-focus inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/[0.1] bg-ink/30 px-4 py-3 text-sm font-medium text-slate-200 transition-[transform,background-color,border-color] hover:border-white/[0.18] hover:bg-ink/55 active:scale-[0.98]">
+              Boundaries &amp; network <Icon name="shield" size={16} />
+            </Link>
           </div>
           <p className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
             <span className="inline-flex items-center gap-2"><Icon name="check" size={14} className="text-win" /> Guided tools work offline</span>
@@ -78,6 +83,9 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      <MoodCheckInWidget />
+      <QuickWinWidget />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card title="A practice library, ready when you are" subtitle="Short guided exercises you can use at your own pace.">

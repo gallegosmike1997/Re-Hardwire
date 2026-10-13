@@ -3,6 +3,10 @@ const isCapacitorBuild = process.env.BUILD_TARGET === 'capacitor';
 
 const nextConfig = {
   reactStrictMode: true,
+  allowedDevOrigins: ['10.159.34.243', 'localhost', '127.0.0.1'],
+  experimental: {
+    agentUpgrade: 'security',
+  },
   // Required so Capacitor can resolve file:// routes on device.
   trailingSlash: true,
   images: {

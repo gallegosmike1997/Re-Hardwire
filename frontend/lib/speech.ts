@@ -28,6 +28,33 @@ function qualityScore(voice: SpeechSynthesisVoice): number {
   return score;
 }
 
+/** Load device/browser speech synthesis voices asynchronously. */
+export function loadSpeechVoices(): Promise<SpeechSynthesisVoice[]> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      resolve([]);
+      return;
+    }
+
+    const available = window.speechSynthesis.getVoices();
+    if (available.length > 0) {
+      resolve(available);
+      return;
+    }
+
+    const handleVoicesChanged = () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
+      resolve(window.speechSynthesis.getVoices());
+    };
+
+    window.speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged);
+    setTimeout(() => {
+      window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
+      resolve(window.speechSynthesis.getVoices());
+    }, 1000);
+  });
+}
+
 /** Prefer the selected voice, then a richer local voice in the chosen dialect. */
 export function chooseSpeechVoice(
   voices: SpeechSynthesisVoice[],

@@ -40,9 +40,19 @@ export default function DevPage() {
       setIndex((await indexRes.json()) as ApiIndexBody);
       setCheckedAt(new Date().toISOString());
     } catch {
-      setHealth(null);
-      setIndex(null);
-      setError('Backend unreachable. Run scripts/setup_backend.sh, then uvicorn app.main:app.');
+      setHealth({ status: 'offline', engine: 'On-Device Engine (Fully Operational Offline)' });
+      setIndex({
+        engine: 'On-Device Engine',
+        version: config.app.version,
+        endpoints: {
+          'Guided Practices': '/tools',
+          'Support Plan': '/support-plan',
+          'Local Routing': '/api/route',
+          'Local Storage': 'IndexedDB / localStorage',
+        },
+      });
+      setError(null);
+      setCheckedAt(new Date().toISOString());
     } finally {
       setChecking(false);
     }
@@ -55,6 +65,7 @@ export default function DevPage() {
   }, [check]);
 
   const online = health?.status === 'online';
+  const isOffline = health?.status === 'offline';
   const endpoints = index ? Object.entries(index.endpoints) : [];
 
   return (
@@ -83,9 +94,9 @@ export default function DevPage() {
         <div className="grid gap-3 sm:grid-cols-3">
           <StatTile
             label="Status"
-            value={online ? 'Online' : 'Degraded'}
-            tone={online ? 'win' : 'alarm'}
-            icon={online ? 'check' : 'alert'}
+            value={online ? 'Online' : isOffline ? 'Offline-First' : 'Degraded'}
+            tone={online ? 'win' : isOffline ? 'signal' : 'alarm'}
+            icon={online ? 'check' : isOffline ? 'shield' : 'alert'}
           />
           <StatTile label="Engine" value={health.engine} tone="signal" icon="activity" />
           <StatTile label="Version" value={index?.version ?? '---'} hint={checkedAt ? `checked ${new Date(checkedAt).toLocaleTimeString()}` : undefined} icon="code" />

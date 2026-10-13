@@ -54,8 +54,8 @@ function localProfile(): UserProfile {
     id: 'local-device',
     name: 'You',
     email: '',
-    preferences: { voiceInput: false, ttsEnabled: false, analyticsEnabled: false },
-    permissions: ['chat', 'history'],
+    preferences: { voiceInput: true, ttsEnabled: true, analyticsEnabled: false },
+    permissions: ['chat', 'tts', 'voice_input', 'history'],
     createdAt: new Date().toISOString(),
   };
 }

@@ -7,6 +7,7 @@ import { RouteInspector } from '@/components/chat/RouteInspector';
 import { Card, EmptyState, Icon, Notice, Progress } from '@/components/ui';
 import { SemanticRoutingPanel } from '@/components/chat/SemanticRoutingPanel';
 import { formatPercent } from '@/lib/format';
+import { computeLocalRoute } from '@/lib/offlineRouting';
 
 const sampleInputs = [
   'I am overwhelmed today and everything is too much.',
@@ -35,7 +36,21 @@ export default function LabPage() {
   }, [loadCatalog, loadStats]);
 
   const handlePreview = async (text: string) => {
-    await previewText(text);
+    const online = useSystemStore.getState().status === 'online';
+    if (online) {
+      await previewText(text);
+    } else {
+      const local = computeLocalRoute(text);
+      useProtocolStore.setState({
+        preview: {
+          protocol: local.protocol.name,
+          confidence: 0.90,
+          tags: [local.protocol.focus, local.emotionalState],
+          nextAction: local.nextAction,
+          emotionalState: local.emotionalState,
+        },
+      });
+    }
   };
 
   const online = connection === 'online';

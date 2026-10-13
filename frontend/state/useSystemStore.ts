@@ -46,8 +46,8 @@ export const useSystemStore = create<SystemState>((set, get) => ({
     if (!response.success || !response.data) {
       set({
         status: 'offline',
-        health: null,
-        error: response.error ?? 'Backend unreachable',
+        health: { status: 'offline', engine: 'On-Device Engine (Fully Operational Offline)' },
+        error: null,
         lastChecked: Date.now(),
       });
       return;

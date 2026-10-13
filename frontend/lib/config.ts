@@ -1,12 +1,27 @@
 /**
  * Re-Hardwire Frontend Configuration
  */
+import { Capacitor } from '@capacitor/core';
+
+function getBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_BASE_URL?.trim()) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL.trim();
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const platform = Capacitor.getPlatform();
+      if (platform === 'android') return 'http://localhost:8000';
+      if (platform === 'ios') return 'http://localhost:8000';
+    } catch {
+      // ignore
+    }
+  }
+  return 'http://localhost:8000';
+}
+
 export const config = {
   api: {
-    // Local development may use its companion API. Production and Capacitor
-    // builds stay offline-first unless an API endpoint is explicitly set.
-    baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
-      || (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : ''),
+    baseUrl: getBaseUrl(),
     endpoints: {
       health: '/health',
       session: '/api/session',

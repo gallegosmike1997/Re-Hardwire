@@ -293,6 +293,20 @@ class TestSessionEndpoint:
             headers={"Authorization": "Bearer " + refreshed["token"]},
         ).json()["subject"] == created["subject"]
 
+    def test_refresh_revokes_the_presented_token(self, client):
+        created = client.post("/api/session").json()
+        refreshed = client.post("/api/session/refresh", json={"token": created["token"]})
+        assert refreshed.status_code == 200
+        # The superseded token no longer authorizes; the replacement does.
+        assert client.get(
+            "/api/session/whoami",
+            headers={"Authorization": "Bearer " + created["token"]},
+        ).status_code == 401
+        assert client.get(
+            "/api/session/whoami",
+            headers={"Authorization": "Bearer " + refreshed.json()["token"]},
+        ).status_code == 200
+
     def test_refresh_rejects_garbage(self, client):
         assert client.post("/api/session/refresh", json={"token": "nope"}).status_code == 401
 

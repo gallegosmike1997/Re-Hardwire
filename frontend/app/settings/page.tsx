@@ -9,6 +9,7 @@ import {
   chooseSpeechVoice,
   getSpeechLanguage,
   getSpeechRate,
+  loadSpeechVoices,
   SYSTEM_SPEECH_LANGUAGE,
 } from '@/lib/speech';
 import {
@@ -16,6 +17,8 @@ import {
   MAX_ENCRYPTED_BACKUP_BYTES,
   restoreEncryptedBackup,
 } from '@/lib/encryptedBackup';
+import { createSyncPayload, restoreSyncPayload } from '@/lib/qrSync';
+import { QrSyncModal } from '@/components/settings/QrSyncModal';
 
 const SPEECH_PREVIEWS: Record<string, string> = {
   de: 'Ich höre dir zu. Wir können einen Schritt nach dem anderen gehen.',
@@ -101,21 +104,35 @@ export default function SettingsPage() {
   const [backupConfirmation, setBackupConfirmation] = useState('');
   const [backupFile, setBackupFile] = useState<File | null>(null);
   const [backupStatus, setBackupStatus] = useState('');
+  const [syncModalMode, setSyncModalMode] = useState<'export' | 'import' | null>(null);
 
   useEffect(() => {
+    let unmounted = false;
+    void loadSpeechVoices().then((voices) => {
+      if (!unmounted && voices.length) setSpeechVoices(voices);
+    });
     if (!('speechSynthesis' in window)) return;
-    const refreshVoices = () => setSpeechVoices(window.speechSynthesis.getVoices());
-    refreshVoices();
+    const refreshVoices = () => {
+      const v = window.speechSynthesis.getVoices();
+      if (!unmounted && v.length) setSpeechVoices(v);
+    };
     window.speechSynthesis.addEventListener('voiceschanged', refreshVoices);
-    return () => window.speechSynthesis.removeEventListener('voiceschanged', refreshVoices);
+    return () => {
+      unmounted = true;
+      window.speechSynthesis.removeEventListener('voiceschanged', refreshVoices);
+    };
   }, []);
 
   useEffect(() => () => {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   }, []);
 
+  const FALLBACK_LANGUAGES = ['en-US', 'en-GB', 'es-ES', 'fr-FR', 'de-DE', 'ja-JP'];
   const speechLanguages = useMemo(
-    () => [...new Set(speechVoices.map((voice) => voice.lang).filter(Boolean))].sort(),
+    () => {
+      const detected = [...new Set(speechVoices.map((voice) => voice.lang).filter(Boolean))].sort();
+      return detected.length ? detected : FALLBACK_LANGUAGES;
+    },
     [speechVoices],
   );
   const selectedSpeechLanguage = typeof prefs.ttsLanguage === 'string'
@@ -137,34 +154,37 @@ export default function SettingsPage() {
     void updateProfile({ preferences: { ...prefs, ttsLanguage: voiceLanguage, ttsVoice: voiceName } });
   };
 
-  const previewSpeech = () => {
-    if (!('speechSynthesis' in window)) return;
+  const previewSpeech = async () => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     if (isPreviewingSpeech) {
       window.speechSynthesis.cancel();
       setIsPreviewingSpeech(false);
       return;
     }
 
-    const language = getSpeechLanguage(selectedSpeechLanguage, navigator.language);
-    const utterance = new SpeechSynthesisUtterance(
-      SPEECH_PREVIEWS[language.split('-')[0]] ?? 'This is a voice preview. We can take things one step at a time.',
-    );
-    utterance.lang = language;
-    utterance.voice = chooseSpeechVoice(
-      speechVoices,
-      language,
-      selectedSpeechVoice || undefined,
-    ) ?? null;
-    utterance.rate = selectedSpeechRate;
-    utterance.onend = () => setIsPreviewingSpeech(false);
-    utterance.onerror = (event) => {
-      if (event.error !== 'canceled' && event.error !== 'interrupted') {
+    try {
+      window.speechSynthesis.cancel();
+      const loadedVoices = await loadSpeechVoices();
+      const language = getSpeechLanguage(selectedSpeechLanguage, navigator.language);
+      const text = SPEECH_PREVIEWS[language.split('-')[0]] ?? 'This is a voice preview. We can take things one step at a time.';
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = language;
+      utterance.voice = chooseSpeechVoice(
+        loadedVoices.length ? loadedVoices : speechVoices,
+        language,
+        selectedSpeechVoice || undefined,
+      ) ?? null;
+      utterance.rate = selectedSpeechRate;
+      utterance.onstart = () => setIsPreviewingSpeech(true);
+      utterance.onend = () => setIsPreviewingSpeech(false);
+      utterance.onerror = (event) => {
         setIsPreviewingSpeech(false);
-      }
-    };
-    window.speechSynthesis.cancel();
-    setIsPreviewingSpeech(true);
-    window.speechSynthesis.speak(utterance);
+      };
+      setIsPreviewingSpeech(true);
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      setIsPreviewingSpeech(false);
+    }
   };
 
   const exportEncryptedBackup = async () => {
@@ -278,7 +298,7 @@ export default function SettingsPage() {
                 className="hw-focus rounded-lg border border-edge bg-panel px-2.5 py-2 text-sm text-slate-200"
                 value={selectedSpeechLanguage}
                 onChange={(event) => updateSpeechPreferences(event.target.value, '')}
-                disabled={isSaving || !profile || speechVoices.length === 0}
+                disabled={isSaving || !profile}
               >
                 <option value={SYSTEM_SPEECH_LANGUAGE}>System default</option>
                 {speechLanguages.map((language) => {
@@ -298,7 +318,7 @@ export default function SettingsPage() {
                     ? voice.lang : selectedSpeechLanguage;
                   updateSpeechPreferences(language, event.target.value);
                 }}
-                disabled={isSaving || !profile || availableSpeechVoices.length === 0}
+                disabled={isSaving || !profile}
               >
                 <option value="">Automatic</option>
                 {availableSpeechVoices.map((voice) => (
@@ -485,6 +505,20 @@ export default function SettingsPage() {
             >
               Restore backup
             </button>
+            <button
+              type="button"
+              onClick={() => setSyncModalMode('export')}
+              className="hw-focus rounded-lg border border-signal-500/30 bg-signal-500/10 px-3 py-2 text-sm text-signal-300 hover:bg-signal-500/15"
+            >
+              Export QR Sync Payload
+            </button>
+            <button
+              type="button"
+              onClick={() => setSyncModalMode('import')}
+              className="hw-focus rounded-lg border border-edgesoft px-3 py-2 text-sm text-slate-200 hover:bg-panelsoft"
+            >
+              Restore from QR Code
+            </button>
           </div>
           {backupStatus && <p role="status" className="text-xs text-slate-400">{backupStatus}</p>}
         </div>
@@ -506,6 +540,13 @@ export default function SettingsPage() {
           Reset profile
         </button>
       </Card>
+
+      <QrSyncModal
+        mode={syncModalMode}
+        onClose={() => setSyncModalMode(null)}
+        onSuccess={(msg) => setBackupStatus(msg)}
+        onError={(msg) => setBackupStatus(msg)}
+      />
     </div>
   );
 }

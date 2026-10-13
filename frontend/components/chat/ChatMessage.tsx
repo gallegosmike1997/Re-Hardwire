@@ -7,7 +7,7 @@ import { useProfileStore } from '@/state/useProfileStore';
 import { Badge, Icon, toneForAction, toneForState } from '@/components/ui';
 import type { LLMMessage } from '@/lib/api';
 import type { RouteResponse } from '@/lib/api';
-import { chooseSpeechVoice, getSpeechLanguage, getSpeechRate } from '@/lib/speech';
+import { chooseSpeechVoice, getSpeechLanguage, getSpeechRate, loadSpeechVoices } from '@/lib/speech';
 import { useFeedbackStore, type ReplyFeedbackReason } from '@/state/useFeedbackStore';
 
 export interface ChatMessageProps {
@@ -33,9 +33,22 @@ export function ChatMessage({ message, route, isStreaming = false, feedbackKey }
   const enabled = Boolean(profile?.preferences.ttsEnabled && profile.permissions.includes('tts'));
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const [supported, setSupported] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+
   // Browser capability detection must run client-side to keep server rendering stable.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setSupported('speechSynthesis' in window); }, []);
+  useEffect(() => {
+    setSupported('speechSynthesis' in window);
+    if ('speechSynthesis' in window) {
+      const updateVoices = () => setVoices(window.speechSynthesis.getVoices());
+      updateVoices();
+      window.speechSynthesis.addEventListener('voiceschanged', updateVoices);
+      return () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', updateVoices);
+      };
+    }
+  }, []);
+
   useEffect(() => { hydrateFeedback(); }, [hydrateFeedback]);
   useEffect(() => {
     return () => {
@@ -56,7 +69,7 @@ export function ChatMessage({ message, route, isStreaming = false, feedbackKey }
     }
   }, [enabled, voiceLanguage, voiceURI]);
 
-  const speak = () => {
+  const speak = async () => {
     if (!enabled || !supported || isStreaming) return;
     if (speaking === 'playing' || speaking === 'loading') {
       window.speechSynthesis.cancel();
@@ -66,10 +79,11 @@ export function ChatMessage({ message, route, isStreaming = false, feedbackKey }
     }
     try {
       window.speechSynthesis.cancel();
+      const loadedVoices = await loadSpeechVoices();
       const utterance = new SpeechSynthesisUtterance(visibleContent);
       utterance.lang = getSpeechLanguage(voiceLanguage, navigator.language);
       utterance.voice = chooseSpeechVoice(
-        window.speechSynthesis.getVoices(),
+        loadedVoices.length ? loadedVoices : voices,
         utterance.lang,
         typeof voiceURI === 'string' ? voiceURI : undefined,
       ) ?? null;

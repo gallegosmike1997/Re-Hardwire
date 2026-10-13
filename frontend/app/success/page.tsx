@@ -6,6 +6,7 @@ import { StatTile } from '@/components/ui/StatTile';
 import { formatRelative, formatTime, truncate } from '@/lib/format';
 import { config } from '@/lib/config';
 import { getStorage, setStorage } from '@/lib/storage';
+import { useSuccessStore } from '@/state/useSuccessStore';
 
 interface HistoryEntry {
   id: string;
@@ -100,6 +101,7 @@ export default function SuccessPage() {
     (sum, session) => sum + (Array.isArray(session.messages) ? session.messages.length : 0),
     0,
   );
+  const streak = useSuccessStore((state) => state.streak());
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 p-4 sm:p-6">
@@ -113,10 +115,11 @@ export default function SuccessPage() {
 
       {error && <Notice tone="warn">{error}</Notice>}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
         <StatTile label="Sessions saved" value={sessions.length} icon="activity" />
         <StatTile label="Total turns" value={totalMessages} icon="chat" tone="pulse" />
         <StatTile label="Wins recorded" value={wins.length} icon="trophy" tone="win" />
+        <StatTile label="Consistency Streak" value={`${streak} days`} icon="check" tone="signal" />
       </div>
 
       <section className="space-y-3">

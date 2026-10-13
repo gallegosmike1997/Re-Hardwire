@@ -8,6 +8,7 @@ import { create } from 'zustand';
 import { api, type HistoryEntry, type LLMMessage, type RouteResponse } from '@/lib/api';
 import { config } from '@/lib/config';
 import { streamConversation } from '@/lib/stream';
+import { computeLocalRoute } from '@/lib/offlineRouting';
 import { useHistoryStore } from './useHistoryStore';
 import { useProtocolStore } from './useProtocolStore';
 import { getStorage, removeStorage, setStorage } from '@/lib/storage';
@@ -64,12 +65,13 @@ function normaliseMessages(messages: unknown): LLMMessage[] {
   });
 }
 
-function offlineCheckIn(): LLMMessage {
+function offlinePersonalizedResponse(userText: string): LLMMessage {
+  const route = computeLocalRoute(userText);
   return {
     role: 'assistant',
     content: [
-      'OFFLINE CHECK-IN',
-      'The coach service is unavailable, so I can’t interpret your message or give a personal response. I won’t guess. You can still choose a short guided practice on this device.',
+      'OFFLINE PERSONALIZED COACHING',
+      route.personalResponse,
       'If you may be in immediate danger, contact local emergency services. In the U.S., call or text 988 for emotional crisis support when a phone connection is available.',
     ].join('\n\n'),
     created_at: stamp(),
@@ -171,7 +173,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      set({ messages: [...transcript, offlineCheckIn()], isSending: false, error: null, lastRoute: null });
+      const localRoute = computeLocalRoute(body);
+      set({
+        messages: [...transcript, offlinePersonalizedResponse(body)],
+        isSending: false,
+        error: null,
+        lastRoute: {
+          protocol: localRoute.protocol.name,
+          confidence: 0.85,
+          tags: [localRoute.protocol.focus, localRoute.emotionalState],
+          nextAction: localRoute.nextAction,
+          emotionalState: localRoute.emotionalState,
+        },
+      });
+      if (get().autoRouting && localRoute.protocol?.name) {
+        useProtocolStore.getState().select(localRoute.protocol.name);
+      }
       if (!get().temporaryMode) {
         setStorage(config.storage.conversationKey, {
           messages: get().messages, sessionId: get().sessionId,
@@ -197,12 +214,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }, controller.signal, (delta) => {
         content += delta;
         set({ messages: [...transcript, { role: 'assistant', content, created_at }] });
-      }, (route) => set({ lastRoute: route }));
+      }, (route) => {
+        set({ lastRoute: route });
+        if (get().autoRouting && route?.protocol) {
+          useProtocolStore.getState().select(route.protocol);
+        }
+      });
     } catch {
       if (controller.signal.aborted) {
         set({ error: 'Response stopped or timed out. Retry to regenerate it.' });
       } else {
-        set({ messages: [...transcript, offlineCheckIn()], error: null, lastRoute: null });
+        const localRoute = computeLocalRoute(body);
+        set({
+          messages: [...transcript, offlinePersonalizedResponse(body)],
+          error: null,
+          lastRoute: {
+            protocol: localRoute.protocol.name,
+            confidence: 0.85,
+            tags: [localRoute.protocol.focus, localRoute.emotionalState],
+            nextAction: localRoute.nextAction,
+            emotionalState: localRoute.emotionalState,
+          },
+        });
+        if (get().autoRouting && localRoute.protocol?.name) {
+          useProtocolStore.getState().select(localRoute.protocol.name);
+        }
       }
     } finally {
       clearTimeout(timeout);

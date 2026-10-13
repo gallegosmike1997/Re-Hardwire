@@ -16,27 +16,28 @@ export interface RouteGroup {
 
 export const routes: RouteGroup[] = [
   {
-    label: 'Main',
+    label: 'Explore & Support',
     items: [
       { label: 'Home', href: '/', icon: 'home', section: 'main' },
       { label: 'Right now', href: '/now', icon: 'activity', section: 'main' },
       { label: 'Guided tools', href: '/tools', icon: 'activity', section: 'main' },
       { label: 'My support plan', href: '/support-plan', icon: 'shield', section: 'main' },
-      { label: 'Chat', href: '/chat', icon: 'chat', section: 'main' },
-      { label: 'Protocol', href: '/protocol', icon: 'shield', section: 'main' },
-      { label: 'Success', href: '/success', icon: 'trophy', section: 'main' },
+      { label: 'Boundaries & network', href: '/boundaries', icon: 'shield', section: 'main' },
     ],
   },
   {
-    label: 'Tools',
+    label: 'Coaching & Progress',
+    items: [
+      { label: 'Chat', href: '/chat', icon: 'chat', section: 'coaching' },
+      { label: 'Protocol', href: '/protocol', icon: 'shield', section: 'coaching' },
+      { label: 'Success', href: '/success', icon: 'trophy', section: 'coaching' },
+    ],
+  },
+  {
+    label: 'Preferences & Advanced',
     items: [
       { label: 'Lab', href: '/lab', icon: 'flask', section: 'tools' },
       { label: 'Dev', href: '/dev', icon: 'code', section: 'tools' },
-    ],
-  },
-  {
-    label: 'Account',
-    items: [
       { label: 'Account', href: '/account', icon: 'person', section: 'account' },
       { label: 'Settings', href: '/settings', icon: 'settings', section: 'account' },
     ],
@@ -61,6 +62,8 @@ export const pageMeta: Record<string, { title: string; description: string }> = 
   '/tools/': { title: 'Re-Hardwire - Guided tools', description: 'Guided coping practices that work offline' },
   '/support-plan': { title: 'Re-Hardwire - My support plan', description: 'A personal support plan saved on this device' },
   '/support-plan/': { title: 'Re-Hardwire - My support plan', description: 'A personal support plan saved on this device' },
+  '/boundaries': { title: 'Re-Hardwire - Boundaries & Network', description: 'Set healthy relationship boundaries and track your care plan network' },
+  '/boundaries/': { title: 'Re-Hardwire - Boundaries & Network', description: 'Set healthy relationship boundaries and track your care plan network' },
   '/protocol': { title: 'Re-Hardwire - Protocol', description: 'Select and configure your resilience protocol' },
   '/success': { title: 'Re-Hardwire - Success', description: 'Your wins and progress tracker' },
   '/account': { title: 'Re-Hardwire - Account', description: 'Manage your account and permissions' },

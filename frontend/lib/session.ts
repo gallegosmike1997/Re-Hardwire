@@ -87,26 +87,48 @@ export async function ensureSession(): Promise<string | null> {
  *
  * The refresh endpoint is tried first so the device keeps the same identity -
  * and therefore its own profile and history. Only a refresh that the backend
- * refuses falls back to a brand new anonymous subject.
+ * refuses falls back to a brand new anonymous subject. Concurrent callers
+ * share one in-flight refresh so a second refresh cannot revoke the token the
+ * first refresh just stored.
  */
+let refreshInflight: Promise<string | null> | null = null;
+
 export async function refreshSession(): Promise<string | null> {
-  const previous = readStoredToken();
   if (!config.api.baseUrl) return null;
 
-  if (previous) {
-    try {
-      const renewed = await postJson(`${config.api.baseUrl}/api/session/refresh`, { token: previous });
-      if (renewed) {
-        storeToken(renewed.token);
-        return renewed.token;
+  if (!refreshInflight) {
+    refreshInflight = (async () => {
+      const previous = readStoredToken();
+      if (previous) {
+        // The refresh endpoint revokes the presented token when it issues the
+        // replacement, so only store the new token when the refresh started
+        // from the token that is still current; otherwise a parallel refresh
+        // already moved this device on to its own replacement.
+        try {
+          const renewed = await postJson(`${config.api.baseUrl}/api/session/refresh`, { token: previous });
+          if (renewed && readStoredToken() === previous) {
+            storeToken(renewed.token);
+            return renewed.token;
+          }
+          if (renewed) return renewed.token;
+        } catch {
+          /* fall through to a fresh session */
+        }
       }
-    } catch {
-      /* fall through to a fresh session */
-    }
+
+      // Refresh refused (or the stored token already moved on): only mint a
+      // fresh anonymous subject when this call still owns the stored token.
+      if (readStoredToken() === previous) {
+        storeToken(null);
+        return ensureSession();
+      }
+      return readStoredToken();
+    })().finally(() => {
+      refreshInflight = null;
+    });
   }
 
-  storeToken(null);
-  return ensureSession();
+  return refreshInflight;
 }
 
 /** Authorization headers for a request, or `{}` when no session is available. */

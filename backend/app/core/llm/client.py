@@ -65,28 +65,41 @@ def _local_response(
     next_action: Optional[str] = None,
     profile: Optional[Mapping[str, object]] = None,
 ) -> str:
-    """Compose a coach reply from the routing decision."""
+    """Compose a dynamic, highly varied and personalized coach reply."""
     if is_crisis(user_text):
         return CRISIS_REPLY
     if not user_text.strip():
         return DEFAULT_CONTENT
 
-    reflection = REFLECTIONS.get(
-        emotional_state or "",
-        "Thanks for laying that out - I hear you.",
-    )
-    follow_up = FOLLOW_UPS.get(next_action or "", FOLLOW_UPS["continue_protocol"])
-    if next_action == "reflect_and_reframe" and "call" not in user_text.lower():
-        follow_up = "What feels hardest about taking that step?"
-    if protocol:
-        follow_up = f"With {protocol}, {follow_up[0].lower()}{follow_up[1:]}"
-
-    # The local scripted provider has no model to render the prompt, so the
-    # operator name is woven in here instead. One use per reply keeps it warm
-    # rather than mechanical.
+    text_lower = user_text.lower()
     name = sanitise_operator_name((profile or {}).get("name"))
-    reflection = f"{name}, {reflection[0].lower()}{reflection[1:]}" if name else reflection
-    return f"{reflection} {follow_up}"
+    salutation = f"{name}, " if name else ""
+
+    if "sleep" in text_lower or "tired" in text_lower or "exhausted" in text_lower:
+        core_reflection = "Rest deficit is compounding your load right now."
+        action_advice = "Protect tonight's recovery window above all else."
+    elif "work" in text_lower or "job" in text_lower or "boss" in text_lower or "deadline" in text_lower or "schedule" in text_lower:
+        core_reflection = "Professional pressure and pacing are colliding right now."
+        action_advice = "Identify one task to defer or scale down immediately to restore breathing room."
+    elif "anxious" in text_lower or "worry" in text_lower or "panic" in text_lower or "spiral" in text_lower:
+        core_reflection = "Anticipatory load is amplifying your anxiety."
+        action_advice = "Bring your awareness back to this exact room and take three slow exhales."
+    elif emotional_state == "overwhelmed":
+        core_reflection = "Too many signals are hitting your system simultaneously."
+        action_advice = "Let's narrow your focus to the next ten minutes only."
+    elif emotional_state == "activated":
+        core_reflection = "There is high operational tension running through your system."
+        action_advice = "Pause before reacting and drop your shoulders away from your ears."
+    else:
+        core_reflection = "I hear the weight and intention behind what you are sharing."
+        action_advice = "What is the single most supportive next step you can take?"
+
+    cleaned_input = user_text.strip()
+    if len(cleaned_input) > 120:
+        cleaned_input = cleaned_input[:117] + "..."
+
+    proto_clause = f" Using {protocol}," if protocol else ""
+    return f"{salutation}{core_reflection} Regarding \"{cleaned_input}\":{proto_clause} {action_advice}"
 
 
 class ProviderError(RuntimeError):
