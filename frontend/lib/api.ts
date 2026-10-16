@@ -2,6 +2,7 @@
  * Re-Hardwire API Client
  */
 import { config } from './config';
+import { authHeaders, ensureSession, refreshSession } from './session';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -27,6 +28,8 @@ export interface AppCapabilities {
     chatRequestSentToReplyService: boolean;
     automaticClinicalReviewSharing: boolean;
     historyBackendHasPerUserIsolation: boolean;
+    deviceSessionRequired: boolean;
+    profileStorage: string;
   };
 }
 
@@ -127,25 +130,44 @@ class ApiClient {
       return { success: false, error: 'The coach service is not configured for this app build.' };
     }
     const url = `${this.baseUrl}${endpoint}`;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    try {
+
+    // Without a session every private route answers 401, so failing fast keeps
+    // the caller on its on-device fallback instead of spending a dead round trip.
+    const session = await ensureSession();
+    if (!session) {
+      return { success: false, error: 'The coach service is unreachable right now.' };
+    }
+
+    const send = async (): Promise<Response> => {
       const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), this.timeout);
-      const response = await fetch(url, {
-        ...options,
-        cache: 'no-store',
-        credentials: 'omit',
-        redirect: 'error',
-        referrerPolicy: 'no-referrer',
-        headers: { 'Content-Type': 'application/json', ...options.headers },
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+      try {
+        return await fetch(url, {
+          ...options,
+          cache: 'no-store',
+          credentials: 'omit',
+          redirect: 'error',
+          referrerPolicy: 'no-referrer',
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()), ...options.headers },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    try {
+      let response = await send();
+
+      // One retry with a refreshed session when the token expired or was rejected.
+      if (response.status === 401 && (await refreshSession())) {
+        response = await send();
+      }
+
       if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       const data = await response.json().catch(() => null);
       return { success: true, data };
     } catch (error: unknown) {
-      if (timeoutId !== undefined) clearTimeout(timeoutId);
       const err = error as Error;
       if (err.name === 'AbortError') return { success: false, error: 'Request timed out' };
       return { success: false, error: err.message || 'Unknown error' };

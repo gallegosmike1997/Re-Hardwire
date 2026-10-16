@@ -1,14 +1,18 @@
 """LLM conversation endpoints."""
 from __future__ import annotations
 
+import json
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.llm.client import ProviderError, stream_llm_response
+from app.core.llm.streaming import stream_reply
 from app.core.routing.engine import route_text
-from app.services import analytics
+from app.core.storage import profile as profile_store
+from app.services import analytics, auth
 
 router = APIRouter(tags=["llm"])
 
@@ -49,15 +53,18 @@ class LLMResponse(BaseModel):
 
 
 @router.post("", response_model=LLMResponse)
-def generate(payload: LLMRequest) -> LLMResponse:
+def generate(payload: LLMRequest, claims: dict = Depends(auth.require_session)) -> LLMResponse:
     """Produce the coach reply for a conversation.
 
     The last user turn is routed first so the reply is grounded in the current
-    protocol, emotional read and next action.
+    protocol, emotional read and next action, then personalised from the
+    caller's own stored profile.
     """
     last_user = _latest_user_text(payload)
+    subject = auth.subject_of(claims)
 
     decision = route_text(last_user, payload.protocol)
+    profile = profile_store.load_profile(subject)
 
     try:
         content = stream_llm_response(
@@ -65,6 +72,7 @@ def generate(payload: LLMRequest) -> LLMResponse:
             protocol=decision.protocol,
             emotional_state=decision.emotional_state,
             next_action=decision.next_action,
+            profile=profile,
         )
     except ProviderError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from None
@@ -89,14 +97,13 @@ def generate(payload: LLMRequest) -> LLMResponse:
 
 
 @router.post("/stream")
-async def generate_stream(payload: LLMRequest):
+async def generate_stream(payload: LLMRequest, claims: dict = Depends(auth.require_session)):
     """NDJSON: route, delta*, done OR error. Disconnect cancels upstream I/O."""
-    import json
-    from fastapi.responses import StreamingResponse
-    from app.core.llm.streaming import stream_reply
-
     last_user = _latest_user_text(payload)
+    subject = auth.subject_of(claims)
+
     decision = route_text(last_user, payload.protocol)
+    profile = profile_store.load_profile(subject)
     route = {"protocol": decision.protocol, "confidence": decision.confidence,
              "tags": decision.tags, "emotionalState": decision.emotional_state,
              "nextAction": decision.next_action}
@@ -109,7 +116,7 @@ async def generate_stream(payload: LLMRequest):
         try:
             async for content in stream_reply(
                 [m.model_dump() for m in payload.messages], decision.protocol,
-                decision.emotional_state, decision.next_action,
+                decision.emotional_state, decision.next_action, profile,
             ):
                 yield event("delta", content=content)
         except ProviderError as exc:

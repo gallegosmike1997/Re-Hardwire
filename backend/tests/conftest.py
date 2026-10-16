@@ -22,6 +22,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(config_module.settings, "profile_file", tmp_path / "profile.json", raising=False)
     monkeypatch.setattr(config_module.settings, "analytics_file", tmp_path / "analytics.json", raising=False)
     monkeypatch.setattr(config_module.settings, "audio_dir", tmp_path / "audio", raising=False)
+    monkeypatch.setattr(config_module.settings, "users_dir", tmp_path / "users", raising=False)
     config_module.settings.ensure_dirs()
 
     from fastapi.testclient import TestClient
@@ -30,3 +31,24 @@ def client(tmp_path, monkeypatch):
 
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture()
+def auth_headers(client):
+    """Authorization headers for a fresh anonymous device session.
+
+    The first session created against a given client claims any legacy shared
+    data, so tests that assert on empty stores should create their session
+    through this fixture rather than calling the endpoint directly.
+    """
+    response = client.post("/api/session")
+    assert response.status_code == 200, response.text
+    return {"Authorization": f"Bearer {response.json()['token']}"}
+
+
+@pytest.fixture()
+def second_auth_headers(client):
+    """Authorization headers for a second, independent anonymous device."""
+    response = client.post("/api/session")
+    assert response.status_code == 200, response.text
+    return {"Authorization": f"Bearer {response.json()['token']}"}

@@ -107,7 +107,6 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!('speechSynthesis' in window)) return;
     const refreshVoices = () => setSpeechVoices(window.speechSynthesis.getVoices());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshVoices();
     window.speechSynthesis.addEventListener('voiceschanged', refreshVoices);
     return () => window.speechSynthesis.removeEventListener('voiceschanged', refreshVoices);

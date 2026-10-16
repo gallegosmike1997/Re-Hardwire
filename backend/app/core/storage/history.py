@@ -15,6 +15,7 @@ from typing import List, Optional
 
 from app.core.config import settings
 
+from . import users
 from ._json import new_id, read_json, write_json
 
 
@@ -22,31 +23,31 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _load_all() -> List[dict]:
-    records = read_json(settings.history_file, [])
+def _load_all(subject: str) -> List[dict]:
+    records = read_json(users.history_file(subject), [])
     return records if isinstance(records, list) else []
 
 
-def list_history(session_id: Optional[str] = None) -> List[dict]:
-    """Return stored sessions, newest first, optionally filtered by session."""
-    records = _load_all()
+def list_history(subject: str, session_id: Optional[str] = None) -> List[dict]:
+    """Return the subject's stored sessions, newest first, optionally filtered."""
+    records = _load_all(subject)
     if session_id:
         records = [item for item in records if item.get("sessionId") == session_id]
     records.sort(key=lambda item: item.get("createdAt", ""), reverse=True)
     return records[: settings.history_limit]
 
 
-def get_history(entry_id: str) -> Optional[dict]:
-    """Return a single session by its record id."""
-    for item in _load_all():
+def get_history(subject: str, entry_id: str) -> Optional[dict]:
+    """Return a single session by its record id within the subject's store."""
+    for item in _load_all(subject):
         if item.get("id") == entry_id:
             return item
     return None
 
 
-def save_history(session: dict) -> dict:
-    """Persist a session, assigning an id and timestamps when missing."""
-    records = _load_all()
+def save_history(subject: str, session: dict) -> dict:
+    """Persist a session for ``subject``, assigning an id and timestamps."""
+    records = _load_all(subject)
 
     record = {
         "id": session.get("id") or new_id("session", [r.get("id", "") for r in records]),
@@ -63,23 +64,23 @@ def save_history(session: dict) -> dict:
     else:
         records.append(record)
 
-    write_json(settings.history_file, records[-settings.history_limit :])
+    write_json(users.history_file(subject), records[-settings.history_limit :])
     return record
 
 
-def delete_history(entry_id: str) -> bool:
-    """Remove a session. Returns True when something was deleted."""
-    records = _load_all()
+def delete_history(subject: str, entry_id: str) -> bool:
+    """Remove a session from the subject's store. True when something was deleted."""
+    records = _load_all(subject)
     remaining = [item for item in records if item.get("id") != entry_id]
     if len(remaining) == len(records):
         return False
-    write_json(settings.history_file, remaining)
+    write_json(users.history_file(subject), remaining)
     return True
 
 
-def clear_history() -> None:
-    """Remove every stored session."""
-    write_json(settings.history_file, [])
+def clear_history(subject: str) -> None:
+    """Remove every stored session for the subject."""
+    write_json(users.history_file(subject), [])
 
 
 def _normalise_messages(messages: Optional[List[dict]]) -> List[dict]:

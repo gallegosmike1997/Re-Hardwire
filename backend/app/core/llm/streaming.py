@@ -4,22 +4,28 @@ import json
 import httpx
 
 from app.core.config import settings
-from .client import ProviderError, is_crisis, CRISIS_REPLY, _local_response
+from .client import (
+    CRISIS_REPLY,
+    ProviderError,
+    _local_response,
+    is_crisis,
+    sanitise_operator_name,
+)
 from .prompts import build_messages, last_user_message
 
 
-async def stream_reply(messages, protocol=None, emotional_state=None, next_action=None):
+async def stream_reply(messages, protocol=None, emotional_state=None, next_action=None, profile=None):
     text = last_user_message(messages)
     if is_crisis(text):
         yield CRISIS_REPLY
         return
     if settings.llm_provider == "local":
-        yield _local_response(text, protocol, emotional_state, next_action)
+        yield _local_response(text, protocol, emotional_state, next_action, profile)
         return
     provider = settings.llm_provider
     headers = {}
     payload = {"model": settings.llm_model, "stream": True,
-               "messages": build_messages(messages, protocol, emotional_state, next_action)}
+               "messages": build_messages(messages, protocol, emotional_state, next_action, profile)}
     if provider == "ollama":
         url = (settings.llm_base_url or "http://localhost:11434").rstrip("/") + "/api/chat"
         payload["options"] = {"temperature": settings.llm_temperature,

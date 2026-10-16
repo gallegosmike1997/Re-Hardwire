@@ -11,6 +11,7 @@ from app.api.capabilities import router as capabilities_router
 from app.api.llm import router as llm_router
 from app.api.profile import router as profile_router
 from app.api.route import router as route_router
+from app.api.session import router as session_router
 from app.api.tts import router as tts_router
 from app.core.config import settings
 from app.rate_limit import RateLimitMiddleware

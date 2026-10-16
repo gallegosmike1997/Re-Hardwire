@@ -9,6 +9,7 @@ export const config = {
       || (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : ''),
     endpoints: {
       health: '/health',
+      session: '/api/session',
       route: '/api/route',
       llm: '/api/llm',
       tts: '/api/tts',

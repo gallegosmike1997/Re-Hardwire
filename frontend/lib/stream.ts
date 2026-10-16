@@ -1,5 +1,6 @@
 import { config } from './config';
 import type { LLMRequest, RouteResponse } from './api';
+import { authHeaders, refreshSession } from './session';
 
 export async function streamConversation(
   request: LLMRequest, signal: AbortSignal,
@@ -8,12 +9,22 @@ export async function streamConversation(
   if (!config.api.baseUrl) {
     throw new Error('The coach service is not configured for this app build. Guided practices remain available offline.');
   }
-  const response = await fetch(`${config.api.baseUrl}/api/llm/stream`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request), signal,
+  const url = `${config.api.baseUrl}/api/llm/stream`;
+  const body = JSON.stringify(request);
+
+  const post = (headers: Record<string, string>) => fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
+    body, signal,
     cache: 'no-store', credentials: 'omit', redirect: 'error',
     referrerPolicy: 'no-referrer',
   });
+
+  let response = await post(await authHeaders());
+  // A stale token gets one refresh-and-retry before the stream is treated as failed.
+  if (response.status === 401 && (await refreshSession())) {
+    response = await post(await authHeaders());
+  }
+
   if (!response.ok || !response.body) throw new Error(`Chat unavailable (HTTP ${response.status}).`);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
