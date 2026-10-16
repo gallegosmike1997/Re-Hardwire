@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useProfileStore } from '@/state/useProfileStore';
 import { Card, Notice, StatTile, Toggle } from '@/components/ui';
+import Link from 'next/link';
+import { LEGAL_VERSION } from '@/lib/legal';
 import { ThemeController } from '@/components/settings/ThemeController';
 import { OfflineReadinessCard } from '@/components/offline/OfflineReadinessCard';
 import {
@@ -389,6 +391,16 @@ export default function SettingsPage() {
       </Card>
 
       <OfflineReadinessCard />
+
+      <Card title="Legal - medical & legal disclaimer" subtitle={`Self-help only. Version ${LEGAL_VERSION}.`}>
+        <p className="text-xs leading-relaxed text-slate-500">
+          Not medical care. No monitoring or rescue. Practices adapt public VA materials and have
+          not had independent clinical review. Local data is not encrypted. Use at your own risk.
+        </p>
+        <Link href="/legal" className="hw-focus mt-3 inline-flex min-h-10 items-center rounded-xl border border-edgesoft px-3 py-2 text-xs font-medium text-slate-200 hover:bg-panelsoft">
+          Read full disclaimer
+        </Link>
+      </Card>
 
       <Card title="Conversation review and sharing" subtitle="Clinical review is off for every conversation.">
         <div className="grid gap-2 sm:grid-cols-3">

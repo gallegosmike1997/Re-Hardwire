@@ -1,7 +1,7 @@
 """Re-Hardwire FastAPI application entry point."""
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -13,6 +13,7 @@ from app.api.profile import router as profile_router
 from app.api.route import router as route_router
 from app.api.tts import router as tts_router
 from app.core.config import settings
+from app.rate_limit import RateLimitMiddleware
 from app.services import analytics
 
 
@@ -102,6 +103,7 @@ app = FastAPI(
 )
 
 app.add_middleware(RequestBodyLimitMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
 
 @app.middleware("http")

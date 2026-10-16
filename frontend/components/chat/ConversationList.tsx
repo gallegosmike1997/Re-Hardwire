@@ -14,6 +14,20 @@ import { useChatStore, type ChatState } from '@/state/useChatStore';
 import type { HistoryEntry } from '@/lib/api';
 import { formatRelative, truncate } from '@/lib/format';
 import { Button, EmptyState, Icon } from '@/components/ui';
+import { historyRetentionNotice } from '@/state/useHistoryStore';
+
+function exportSession(entry: HistoryEntry) {
+  const blob = new Blob(
+    [JSON.stringify({ exportedAt: new Date().toISOString(), session: entry }, null, 2)],
+    { type: 'application/json' },
+  );
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `re-hardwire-session-${entry.sessionId}.json`;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 function firstUserLine(entry: HistoryEntry): string {
   const first = entry.messages.find((message) => message.role === 'user');
@@ -81,6 +95,7 @@ export function ConversationList({ onSelect }: ConversationListProps) {
   return (
     <div>
     {error && <p role="alert" className="mb-2 text-xs text-alarm">{error}</p>}
+    <p className="mb-2 text-[11px] leading-relaxed text-slate-600">{historyRetentionNotice()} Deleting a saved chat removes it from this device now; server copies delete on reconnect. Export first if you want to keep it.</p>
     <ul className="space-y-2">
       {entries.map((entry) => {
         const isActive = entry.id === activeId;
@@ -113,9 +128,16 @@ export function ConversationList({ onSelect }: ConversationListProps) {
                 </span>
               </span>
             </button>
-            <Button size="sm" disabled={isSending || isDeleting} onClick={() => {
-              if (window.confirm('Delete this saved conversation?')) void remove(entry.id);
-            }}>Delete conversation</Button>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <Button size="sm" variant="ghost" onClick={() => exportSession(entry)}>Export</Button>
+              <Button size="sm" variant="ghost" disabled={isSending || isDeleting} onClick={() => {
+                exportSession(entry);
+                if (window.confirm('Exported. Now delete this saved conversation from this device? Server copies will delete on reconnect.')) void remove(entry.id);
+              }}>Export &amp; delete</Button>
+              <Button size="sm" variant="ghost" disabled={isSending || isDeleting} onClick={() => {
+                if (window.confirm('Delete this saved conversation without exporting? This cannot be undone.')) void remove(entry.id);
+              }}>Delete</Button>
+            </div>
           </li>
         );
       })}

@@ -20,7 +20,7 @@ From `frontend/`, run `npm ci`, then `npm run build:capacitor`. The static asset
 
 - Guided practices and their instructions are bundled with the app and do not make network requests.
 - Profile/preferences, wins, the personal support plan, and session transcripts are kept locally first. The support plan is never sent to the configured backend. Pending profile changes and remote session deletions retry when the backend is available.
-- Browser local storage is not encrypted by Re-Hardwire. The Settings page can export or clear the app's local data; clearing it does not delete records already sent to a backend.
+- Browser local storage is not encrypted by Re-Hardwire. The Settings page can export or clear the app's local data; clearing it does not delete records already sent to a backend. Saved on-device chats expire after 30 days; the history list shows the retention notice and offers export before delete. Chat send is throttled client-side (one send per 3 seconds) and crisis wording opens an in-app 988 panel before sending.
 - 988 and emergency contacts require a phone or data connection. They cannot be reached by the app without a connection.
 - Coach chat does not run a language model on-device. Without its backend it says so and links to the local practice library.
 - The offline checker verifies cached core pages and static files; it does not include chat content or personal support-plan entries in the download. Guided practice saves and feedback are stored locally.

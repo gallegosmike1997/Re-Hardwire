@@ -7,7 +7,8 @@
 import { create } from 'zustand';
 import { api, type HistoryEntry } from '@/lib/api';
 import { config } from '@/lib/config';
-import { getStorage, setStorage } from '@/lib/storage';
+import { getStorage, removeStorage, setStorage } from '@/lib/storage';
+import { isExpiredTimestamp, retentionNotice } from '@/lib/retention';
 
 export interface HistoryState {
   entries: HistoryEntry[];
@@ -29,7 +30,23 @@ const DELETED_KEY = `${CACHE_KEY}-deleted`;
 
 function readCache(): HistoryEntry[] {
   const cached = getStorage<HistoryEntry[]>(CACHE_KEY);
-  return Array.isArray(cached) ? cached : [];
+  const entries = Array.isArray(cached) ? cached : [];
+  const fresh = entries.filter((entry) => !isExpiredTimestamp(entry.createdAt));
+  if (fresh.length !== entries.length) setStorage(CACHE_KEY, fresh);
+  // Expire the active transcript too so a stale open chat is not kept forever.
+  const active = getStorage<{ messages: unknown[]; sessionId: string }>(config.storage.conversationKey);
+  if (active && Array.isArray(active.messages) && active.messages.length > 0) {
+    const lastStamp = [...active.messages].reverse().find(
+      (m): m is { created_at?: string } => typeof m === 'object' && m !== null,
+    );
+    const stamp = lastStamp && typeof lastStamp.created_at === 'string' ? lastStamp.created_at : undefined;
+    if (isExpiredTimestamp(stamp)) removeStorage(config.storage.conversationKey);
+  }
+  return fresh;
+}
+
+export function historyRetentionNotice(): string {
+  return retentionNotice();
 }
 
 function readDeleted(): string[] {

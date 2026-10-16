@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Button, Icon, Textarea } from '@/components/ui';
 import { config } from '@/lib/config';
 import { useProfileStore } from '@/state/useProfileStore';
 import { useChatStore } from '@/state/useChatStore';
 import { getSpeechLanguage } from '@/lib/speech';
+import { containsCrisisLanguage } from '@/lib/safety';
+import { CrisisIntercept } from '@/components/safety/CrisisIntercept';
 
 /** Minimal shape of the Web Speech API surface this component uses. */
 interface SpeechRecognitionLike {
@@ -45,6 +48,9 @@ export function ChatComposer() {
     && Boolean(profile?.permissions.includes('voice_input'));
   const [voiceError, setVoiceError] = useState('');
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const [showCrisis, setShowCrisis] = useState(false);
+  const [lastSendAt, setLastSendAt] = useState(0);
+  const router = useRouter();
 
   // Browser capability detection must run client-side to keep server rendering stable.
   useEffect(() => {
@@ -72,7 +78,15 @@ export function ChatComposer() {
     }
   }, []);
 
-  const submit = () => {
+  const submit = (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastSendAt < 3000) return;
+    if (!force && containsCrisisLanguage(input)) {
+      setShowCrisis(true);
+      return;
+    }
+    setShowCrisis(false);
+    setLastSendAt(now);
     void send();
     areaRef.current?.focus();
   };
@@ -180,7 +194,7 @@ export function ChatComposer() {
               variant="primary"
               size="lg"
               disabled={!canSend}
-              onClick={submit}
+              onClick={() => submit()}
               aria-label="Send message"
             >
               <Icon name="send" size={17} />
@@ -188,6 +202,15 @@ export function ChatComposer() {
           )}
         </div>
 
+          {showCrisis && (
+            <div className="mt-2">
+              <CrisisIntercept
+                onSendAnyway={() => submit(true)}
+                onChoosePractice={() => { router.push('/tools#grounding'); }}
+                onDismiss={() => { setShowCrisis(false); areaRef.current?.focus(); }}
+              />
+            </div>
+          )}
           {voiceError && <p role="alert" className="mt-2 text-sm text-alarm">{voiceError}</p>}
           {!voiceEnabled && <p className="mt-2 text-xs text-slate-500">Enable Voice input and its capability in Settings to dictate.</p>}
           {voiceEnabled && !voiceSupported && <p className="mt-2 text-xs text-slate-500">Dictation is not supported in this browser. You can still type.</p>}

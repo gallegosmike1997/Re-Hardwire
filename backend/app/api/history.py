@@ -43,7 +43,7 @@ def create_session(payload: HistoryCreate) -> dict:
     record = store.save_history(payload.model_dump(by_alias=True))
     analytics.record_event(
         "history.save",
-        {"sessionId": record["sessionId"], "messages": len(record["messages"])},
+        {"sessionId": record["sessionId"], "messages_count": len(record["messages"])},
     )
     return record
 
