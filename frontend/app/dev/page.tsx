@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { EmptyState, Notice, StatTile } from '@/components/ui/StatTile';
+import { config } from '@/lib/config';
 
 interface HealthBody {
   status: string;
@@ -29,8 +30,10 @@ export default function DevPage() {
       const requestOptions: RequestInit = {
         cache: 'no-store', credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer',
       };
+      const baseUrl = config.api.baseUrl || '';
       const [healthRes, indexRes] = await Promise.all([
-        fetch('/health', requestOptions), fetch('/api', requestOptions),
+        fetch(`${baseUrl}/health`, requestOptions),
+        fetch(`${baseUrl}/api`, requestOptions),
       ]);
       if (!healthRes.ok || !indexRes.ok) throw new Error('backend not responding');
       setHealth((await healthRes.json()) as HealthBody);
