@@ -3,11 +3,11 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.storage import history as store
-from app.services import analytics
+from app.services import analytics, auth
 
 router = APIRouter(tags=["history"])
 
@@ -32,15 +32,20 @@ class HistoryCreate(BaseModel):
 
 
 @router.get("")
-def list_sessions(sessionId: Optional[str] = Query(default=None, max_length=100)) -> List[dict]:
+def list_sessions(
+    sessionId: Optional[str] = Query(default=None, max_length=100),
+    claims: dict = Depends(auth.require_session),
+) -> List[dict]:
     """List stored sessions, newest first, optionally filtered by sessionId."""
-    return store.list_history(sessionId)
+    subject = auth.subject_of(claims)
+    return store.list_history(subject, sessionId)
 
 
 @router.post("")
-def create_session(payload: HistoryCreate) -> dict:
+def create_session(payload: HistoryCreate, claims: dict = Depends(auth.require_session)) -> dict:
     """Persist a session and return the stored record."""
-    record = store.save_history(payload.model_dump(by_alias=True))
+    subject = auth.subject_of(claims)
+    record = store.save_history(subject, payload.model_dump(by_alias=True))
     analytics.record_event(
         "history.save",
         {"sessionId": record["sessionId"], "messages_count": len(record["messages"])},
@@ -49,18 +54,20 @@ def create_session(payload: HistoryCreate) -> dict:
 
 
 @router.get("/{entry_id}")
-def get_session(entry_id: str) -> dict:
+def get_session(entry_id: str, claims: dict = Depends(auth.require_session)) -> dict:
     """Fetch a single stored session."""
-    record = store.get_history(entry_id)
+    subject = auth.subject_of(claims)
+    record = store.get_history(subject, entry_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return record
 
 
 @router.delete("/{entry_id}")
-def delete_session(entry_id: str) -> dict:
+def delete_session(entry_id: str, claims: dict = Depends(auth.require_session)) -> dict:
     """Delete a stored session."""
-    if not store.delete_history(entry_id):
+    subject = auth.subject_of(claims)
+    if not store.delete_history(subject, entry_id):
         raise HTTPException(status_code=404, detail="Session not found")
     analytics.record_event("history.delete", {"id": entry_id})
     return {"deleted": True, "id": entry_id}

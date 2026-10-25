@@ -28,10 +28,11 @@ class TestAnalyticsScrubbing:
         assert "some_future_free_text" not in event["payload"]
         assert "some_future_free_text" in event["payload"]["redacted_keys"]
 
-    def test_history_save_counts_do_not_store_transcripts(self, client):
+    def test_history_save_counts_do_not_store_transcripts(self, client, auth_headers):
         response = client.post(
             "/api/history",
             json={"sessionId": "s1", "messages": [{"role": "user", "content": "my secret"}]},
+            headers=auth_headers,
         )
         assert response.status_code == 200
         from app.services import analytics

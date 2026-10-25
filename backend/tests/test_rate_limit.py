@@ -3,12 +3,12 @@ from __future__ import annotations
 
 
 class TestRateLimit:
-    def test_llm_refuses_after_60_calls_per_minute(self, client):
+    def test_llm_refuses_after_60_calls_per_minute(self, client, auth_headers):
         payload = {"messages": [{"role": "user", "content": "hello"}]}
         for _ in range(60):
-            response = client.post("/api/llm", json=payload)
+            response = client.post("/api/llm", json=payload, headers=auth_headers)
             assert response.status_code == 200
-        limited = client.post("/api/llm", json=payload)
+        limited = client.post("/api/llm", json=payload, headers=auth_headers)
         assert limited.status_code == 429
         assert limited.headers.get("Retry-After") == "60"
 

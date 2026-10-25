@@ -36,6 +36,30 @@ The backend defaults to a local scripted coach and needs no provider key. Guided
 
 Requirements: Python 3.11 recommended. The backend includes machine-learning dependencies and can take time and disk space to install.
 
+On Windows, the recommended way to start the backend is `backend/start_backend.ps1`. It probes the Ollama service on `http://localhost:11434`:
+
+- If Ollama is reachable, uvicorn starts with `LLM_PROVIDER=ollama` (default model `phi3:mini`) so coach chat uses the local Ollama model.
+- If Ollama is not reachable, uvicorn falls back to `LLM_PROVIDER=local` (scripted coach replies), so the backend still works offline with no provider key.
+
+```powershell
+# one-time setup (run once from the repo root; creates backend/venv):
+#   npm run setup:backend
+cd backend
+# start with auto provider selection (Ollama -> local fallback):
+.\start_backend.ps1
+# force a specific provider or port:
+.\start_backend.ps1 -Provider local
+.\start_backend.ps1 -Provider ollama -NoReload -Port 8000
+```
+
+Provider selection:
+- `-Provider auto` (default): probes Ollama, falls back to local scripted replies.
+- `-Provider local`: always use the scripted coach (offline, no external dependency).
+- `-Provider ollama`: require Ollama; fails if unreachable.
+- `-NoReload`: disable uvicorn file watching (useful under process managers).
+
+Environment variables (`LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`) are set for the uvicorn process only and are not written to `backend/.env`, so `backend/.env` values still take precedence unless overridden by the script or your shell. See [offline and deployment notes](docs/OFFLINE_AND_DEPLOYMENT.md).
+
 ```powershell
 cd backend
 python -m venv .venv
