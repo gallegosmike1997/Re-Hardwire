@@ -2,7 +2,8 @@
 
 ``POST /api/session`` mints a fresh anonymous subject and token;
 ``POST /api/session/refresh`` re-issues for the same subject while the old
-token is inside its expiry grace window. Neither endpoint reads or writes
+token is inside its expiry grace window, and revokes the presented token when
+the replacement is issued. Neither endpoint reads or writes
 personal data beyond the subject identifier.
 """
 from __future__ import annotations
