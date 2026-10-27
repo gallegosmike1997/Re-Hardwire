@@ -2,6 +2,9 @@
 const isCapacitorBuild = process.env.BUILD_TARGET === 'capacitor';
 
 const nextConfig = {
+  experimental: {
+    agentUpgrade: 'security',
+  },
   reactStrictMode: true,
   // Required so Capacitor can resolve file:// routes on device.
   trailingSlash: true,
