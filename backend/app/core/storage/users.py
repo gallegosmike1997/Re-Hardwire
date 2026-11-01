@@ -11,7 +11,9 @@ import os
 import re
 import threading
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict, Optional
 
 from app.core.config import settings
 
@@ -20,8 +22,14 @@ from ._json import read_json, write_json
 #: ``usr_`` followed by a uuid4 hex string; the only shape used as a directory.
 _SUBJECT_RE = re.compile(r"usr_[0-9a-f]{32}")
 
+#: ``reg_`` followed by a uuid4 hex string; used for registered users.
+_REG_SUBJECT_RE = re.compile(r"reg_[0-9a-f]{32}")
+
 _MIGRATION_MARKER = "legacy-claimed.json"
 _MIGRATION_LOCK = threading.Lock()
+
+#: Mapping of email address -> subject for registered users.
+_email_to_subject: Dict[str, str] = {}
 
 
 def new_subject() -> str:
@@ -86,3 +94,24 @@ def claim_legacy_data(subject: str) -> bool:
 
         write_json(marker, {"subject": subject, "claimedAnyData": claimed})
         return True
+
+
+def find_existing_user(email: str) -> Optional[str]:
+    """Check if a registered user with this email already exists.
+
+    Returns the subject if found, None otherwise.
+    """
+    return _email_to_subject.get(email.lower())
+
+
+def register_user(email: str, subject: str) -> None:
+    """Register a new user with email -> subject mapping."""
+    _email_to_subject[email.lower()] = subject
+
+
+def find_user_by_email(email: str) -> Optional[str]:
+    """Find a registered user by email address.
+
+    Returns the subject if found, None otherwise.
+    """
+    return _email_to_subject.get(email.lower())

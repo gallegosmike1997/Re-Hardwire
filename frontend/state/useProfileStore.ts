@@ -35,7 +35,7 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   sidebarCollapsed: false,
   stickyNotesEnabled: false,
   noteColor: 'yellow'
-};
+  themeCssVariables: false,\n};
 
 export interface ProfileState {
   profile: UserProfile | null;
