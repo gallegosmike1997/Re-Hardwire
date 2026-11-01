@@ -9,27 +9,39 @@ import { useProfileStore } from '@/state/useProfileStore';
 import { useProtocolStore } from '@/state/useProtocolStore';
 import { useSystemStore } from '@/state/useSystemStore';
 import { ThemeController } from '@/components/settings/ThemeController';
+import { FirstLaunchModal } from '@/components/legal/FirstLaunchModal';
 import { useHistoryStore } from '@/state/useHistoryStore';
 import { usePracticeStore } from '@/state/usePracticeStore';
 
 function ConnectionBanner() {
   const [online, setOnline] = useState(true);
+  const [saveData, setSaveData] = useState(false);
 
   useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
+    const connection = navigator as Navigator & {
+      connection?: { saveData?: boolean; addEventListener?: (t: string, f: () => void) => void; removeEventListener?: (t: string, f: () => void) => void };
+    };
+    const update = () => {
+      setOnline(navigator.onLine);
+      setSaveData(Boolean(connection.connection?.saveData));
+    };
     update();
     window.addEventListener('online', update);
     window.addEventListener('offline', update);
+    connection.connection?.addEventListener?.('change', update);
     return () => {
       window.removeEventListener('online', update);
       window.removeEventListener('offline', update);
+      connection.connection?.removeEventListener?.('change', update);
     };
   }, []);
 
-  if (online) return null;
+  if (online && !saveData) return null;
   return (
     <div role="status" className="border-b border-warmth/20 bg-warmth/5 px-4 py-2 text-center text-xs text-warmth">
-      You’re offline. Guided tools and saved on-device content are still available; coach chat needs a connection.
+      {online
+        ? 'Data-saver is on: guided tools work fully, but coach replies may be slower. Large downloads are paused.'
+        : 'You’re offline. Guided tools and saved on-device content are still available; coach chat needs a connection and will show a local check-in instead.'}
     </div>
   );
 }
@@ -87,6 +99,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="mx-auto w-full max-w-6xl animate-fade-up">{children}</div>
           </main>
           <MobileNav />
+          <FirstLaunchModal />
         </div>
       </div>
     </div>
