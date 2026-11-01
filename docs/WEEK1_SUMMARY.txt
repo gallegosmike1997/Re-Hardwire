@@ -1,0 +1,52 @@
+=== Week 1 Implementation Summary ===
+
+Completed Tasks:
+  1. Task 1.1: Auth Provider Abstraction (oidc.py)
+     - Created AuthProvider abstract interface with all required properties
+     - Created OIDCAuthProvider implementation using async HTTP + JWKS verification
+     
+  2. Task 1.2: OIDC Backend
+     - Implemented async HTTP client for OIDC provider calls
+     - Added JWT token verification using JWKS (RSA256 algorithm)
+     - Added support for token revocation at provider level
+     
+  3. Task 1.3: Register/Login/Logout Endpoints
+     - Added /api/auth/register (POST): Create user and issue session token
+     - Added /api/auth/login (POST): Authenticate user and issue session token
+     - Added /api/auth/logout (POST): Revoke session and refresh token
+     - Added /api/auth/providers (GET): Discover OIDC providers
+     
+  4. Task 1.4: JWT Refresh + Revocation
+     - Added create_refresh_token(): Persist refresh token to DB
+     - Added erify_refresh_token(): Verify and mark refresh token as used
+     - Added evoke_refresh_token(): Revoke refresh token in DB
+     - Added _hash_token_token(): Hash refresh tokens (SHA-256)
+     
+  5. Task 1.6: require_session Update
+     - Modified equire_session() to support both anonymous and OIDC users
+     - OIDC users: resolves subject from User.provider_sub in database
+     - Anonymous users: resolves from usr_ subjects (legacy)
+     
+  6. Task 1.7: Frontend Sign-In UI
+     - Deferred - requires Android release build context
+
+Files Created/Modified:
+  - backend/app/services/oidc.py (created)
+  - backend/app/services/auth.py (updated with JWT refresh/revocation)
+  - backend/app/api/auth.py (created - experimental routes)
+  - backend/app/main.py (updated with auth endpoints)
+  - backend/app/core/config.py (added OIDC config)
+  - backend/requirements.txt (added pyjwt)
+
+Testing Results:
+  - Health endpoint: 200 OK
+  - Auth provider discovery: 200 OK
+  - Register endpoint: Correctly requires OIDC provider config
+  - All auth routes registered: /api/auth/register, /api/auth/login, /api/auth/logout
+
+Next Steps:
+  - Configure real OIDC provider (Auth0/Firebase/Keycloak/Cognito)
+  - Implement MFA (TOTP) for task 1.5
+  - Implement frontend sign-in UI (task 1.7)
+  - Update Android build configuration
+  - Create unit tests for auth endpoints

@@ -1,28 +1,27 @@
-"""Minimal HMAC-signed session tokens.
+"""Session token management with JWT refresh + revocation — Week 1 tasks 1.4, 1.6.
 
-This is deliberately dependency-free and is **not** a replacement for a real
-identity provider: tokens are self-signed with a shared secret, there is no
-key rotation and revocation is in-memory only. It exists so local and packaged
-builds can carry a session identity without pulling in an auth stack.
-
-Anonymous device flow: ``create_anonymous_session`` mints a random subject
-plus a long-lived token; ``refresh_session`` re-issues for the same subject
-within an expiry grace window. Private routes resolve the owner exclusively
-from the verified token subject via :func:`require_session`.
+Covers:
+  1.4: JWT refresh + revocation (persisted refresh tokens in DB)
+  1.6: require_session customization plus auth provider wiring
 """
 from __future__ import annotations
 
 import base64
+import datetime
 import hashlib
 import hmac
 import json
 import secrets
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Annotated
 
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.database import get_session
+from app.core.models import RefreshToken, User
 from app.core.storage import users
 
 #: Tokens revoked during this process lifetime.
@@ -43,52 +42,7 @@ def _sign(payload: bytes) -> str:
     return _b64encode(digest.digest())
 
 
-def create_token(subject: str, ttl: Optional[int] = None, **claims: Any) -> str:
-    """Issue a signed token for ``subject``."""
-    lifetime = ttl if ttl is not None else settings.auth_token_ttl
-    now = int(time.time())
-
-    body: Dict[str, Any] = {
-        "sub": subject,
-        "iat": now,
-        "exp": now + int(lifetime),
-        # A random id keeps tokens minted in the same second distinct, so
-        # revoking a superseded refresh token cannot invalidate its
-        # replacement when both share a timestamp.
-        "jti": secrets.token_hex(8),
-        **claims,
-    }
-    payload = _b64encode(json.dumps(body, separators=(",", ":")).encode("utf-8"))
-    return f"{payload}.{_sign(payload.encode('ascii'))}"
-
-
-def verify_token(token: str, *, allow_expired: bool = False) -> Optional[Dict[str, Any]]:
-    """Return the token claims, or ``None`` when invalid, expired or revoked."""
-    if not token or token in _REVOKED or "." not in token:
-        return None
-
-    payload, _, signature = token.partition(".")
-    if not hmac.compare_digest(_sign(payload.encode("ascii")), signature):
-        return None
-
-    try:
-        claims = json.loads(_b64decode(payload))
-    except (ValueError, json.JSONDecodeError):
-        return None
-
-    if not isinstance(claims, dict):
-        return None
-    if claims.get("exp", 0) < int(time.time()) and not allow_expired:
-        return None
-    return claims
-
-
-def revoke_token(token: str) -> None:
-    """Revoke a token for the remainder of this process lifetime."""
-    _REVOKED.add(token)
-
-
-def create_anonymous_session() -> Dict[str, Any]:
+def create_anonymous_session() -> dict[str, Any]:
     """Mint a new anonymous subject and its session token.
 
     The first session also claims any legacy shared profile/history files so
@@ -103,8 +57,7 @@ def create_anonymous_session() -> Dict[str, Any]:
         "expiresIn": settings.auth_session_ttl,
     }
 
-
-def refresh_session(token: str) -> Optional[Dict[str, Any]]:
+def refresh_session(token: str) -> dict[str, Any] | None:
     """Re-issue a session token for the same subject.
 
     Accepts an expired token only within the configured refresh grace window
@@ -130,26 +83,143 @@ def refresh_session(token: str) -> Optional[Dict[str, Any]]:
         "expiresIn": settings.auth_session_ttl,
     }
 
+def create_token(subject: str, ttl: int | None = None, **claims: Any) -> str:
+    """Issue a signed token for ``subject``."""
+    lifetime = ttl if ttl is not None else settings.auth_token_ttl
+    now = int(time.time())
 
-def bearer_token(authorization: Optional[str]) -> Optional[str]:
-    """Extract the token from an ``Authorization: Bearer <token>`` header."""
-    if not authorization:
+    body: dict[str, Any] = {
+        "sub": subject,
+        "iat": now,
+        "exp": now + int(lifetime),
+        "jti": secrets.token_hex(8),
+        **claims,
+    }
+    payload = _b64encode(json.dumps(body, separators=(",", ":")).encode("utf-8"))
+    return f"{payload}.{_sign(payload.encode('ascii'))}"
+
+
+def verify_token(token: str, *, allow_expired: bool = False) -> dict[str, Any] | None:
+    """Return the token claims, or ``None`` when invalid, expired or revoked."""
+    if not token or token in _REVOKED or "." not in token:
         return None
-    scheme, _, value = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not value:
+
+    payload, _, signature = token.partition(".")
+    if not hmac.compare_digest(_sign(payload.encode("ascii")), signature):
         return None
-    return value.strip()
+
+    try:
+        claims = json.loads(_b64decode(payload))
+    except (ValueError, json.JSONDecodeError):
+        return None
+
+    if not isinstance(claims, dict):
+        return None
+    if claims.get("exp", 0) < int(time.time()) and not allow_expired:
+        return None
+    return claims
 
 
-def require_session(request: Request) -> Dict[str, Any]:
+def revoke_token(token: str) -> None:
+    """Revoke a token for the remainder of this process lifetime."""
+    _REVOKED.add(token)
+
+
+# --- Persistent refresh token management (task 1.4) ---
+
+
+async def create_refresh_token(session: AsyncSession, user: User, ttl_seconds: int = 604800) -> RefreshToken:
+    """Persist a new refresh token for the user."""
+    if user.id is None:
+        await session.flush()
+    token_hash = _hash_token_token(secrets.token_urlsafe(48))
+    refresh = RefreshToken(
+        subject_id=user.id,
+        token_hash=token_hash,
+        expires_at=time.time() + ttl_seconds,
+    )
+    session.add(refresh)
+    await session.commit()
+    return refresh
+
+
+async def verify_refresh_token(session: AsyncSession, token: str, *, revoke_on_use: bool = True) -> Optional[RefreshToken]:
+    """Verify a refresh token hash and mark it invalid. Returns the token row or None."""
+    if token in _REVOKED:
+        return None
+    token_hash = _hash_token_token(token)
+    result = await session.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+    row = result.scalar_one_or_none()
+    if row is None:
+        return None
+    if row.expires_at < time.time():
+        await session.delete(row)
+        await session.commit()
+        return None
+    if revoke_on_use:
+        row.revoked_at = datetime.datetime.utcnow()
+        row.expires_at = 0
+        await session.commit()
+    return row
+
+
+async def revoke_refresh_token(session: AsyncSession, token: str) -> bool:
+    """Revoke a refresh token."""
+    token_hash = _hash_token_token(token)
+    result = await session.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+    row = result.scalar_one_or_none()
+    if row is None:
+        return False
+    row.revoked_at = datetime.datetime.utcnow()
+    row.expires_at = 0
+    await session.commit()
+    return True
+
+
+def _hash_token_token(token: str) -> str:
+    """Return a SHA-256 hash of a refresh token value (not the plaintext)."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+# --- User lookup by OIDC provider subject ---
+
+
+async def get_user_by_provider_sub(session: AsyncSession, provider_sub: str) -> User | None:
+    """Return the User with the given OIDC provider subject, or None."""
+    result = await session.execute(select(User).where(User.provider_sub == provider_sub))
+    return result.scalar_one_or_none()
+
+
+# --- Session dependency (task 1.6) ---
+
+
+async def require_session(request: Request, session: Annotated[AsyncSession, Depends(get_session)]) -> dict[str, Any]:
     """FastAPI dependency: verified session claims or HTTP 401.
 
-    Callers must derive ownership from the returned ``sub`` only; request
-    bodies never carry identity.
+    Resolves identity from the token's ``sub``. For OIDC users this is the
+    provider's subject identifier (matched against User.provider_sub);
+    for anonymous device sessions it is the legacy usr_ subject.
     """
     token = bearer_token(request.headers.get("Authorization"))
     claims = verify_token(token) if token else None
-    if claims is None or not users.is_valid_subject(claims.get("sub")):
+    if claims is None:
+        raise HTTPException(
+            status_code=401,
+            detail="A valid session token is required. Call POST /api/session first.",
+        )
+
+    sub = claims.get("sub", "")
+    # Anonymous session: sub must be a valid usr_ subject
+    anonymous_valid = users.is_valid_subject(sub)
+
+    # OIDC user: sub must match a User.provider_sub in the database
+    oidc_valid = False
+    if not anonymous_valid:
+        uid = await get_user_by_provider_sub(session, sub)
+        if uid is not None:
+            oidc_valid = True
+
+    if not (anonymous_valid or oidc_valid):
         raise HTTPException(
             status_code=401,
             detail="A valid session token is required. Call POST /api/session first.",
@@ -157,6 +227,16 @@ def require_session(request: Request) -> Dict[str, Any]:
     return claims
 
 
-def subject_of(claims: Dict[str, Any]) -> str:
+def subject_of(claims: dict[str, Any]) -> str:
     """Return the verified subject from session claims."""
     return str(claims["sub"])
+
+
+def bearer_token(authorization: str | None) -> str | None:
+    """Extract the token from an Authorization: Bearer <token> header."""
+    if not authorization:
+        return None
+    scheme, _, value = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not value:
+        return None
+    return value.strip()

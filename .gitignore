@@ -31,5 +31,12 @@ venv/
 /.kombai/
 /.npm-cache/
 
+# Capacitor / Android generated
+frontend/android/
+frontend/ios/
+*.apk
+*.aab
+*.keystore
+
 # IDE / editor state (JetBrains)
 .idea/

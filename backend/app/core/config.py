@@ -82,10 +82,27 @@ class Settings:
     #: An expired session token may still be refreshed within this grace window.
     auth_refresh_grace = int(os.getenv("AUTH_REFRESH_GRACE", str(7 * 86400)))
 
+    # --- OIDC Provider Configuration (task 1.2) ---
+    oidc_provider_name = os.getenv("OIDC_PROVIDER_NAME", "oidc")
+    oidc_provider_issuer = os.getenv("OIDC_ISSUER", "").strip()
+    oidc_client_id = os.getenv("OIDC_CLIENT_ID", "").strip()
+    oidc_client_secret = os.getenv("OIDC_CLIENT_SECRET", "").strip()
+    oidc_auth_endpoint = os.getenv("OIDC_AUTH_ENDPOINT", "").strip()
+    oidc_token_endpoint = os.getenv("OIDC_TOKEN_ENDPOINT", "").strip()
+    oidc_userinfo_endpoint = os.getenv("OIDC_USERINFO_ENDPOINT", "").strip()
+    oidc_jwks_uri = os.getenv("OIDC_JWKS_URI", "").strip()
+    oidc_revocation_endpoint = os.getenv("OIDC_REVOCATION_ENDPOINT", "").strip()
+
     default_permissions = _env_list(
         "DEFAULT_PERMISSIONS",
         "chat,history,tts,analytics,voice_input",
     )
+
+    # --- MFA Configuration (task 1.5) ---
+    mfa_issuer = os.getenv("MFA_ISSUER", "Re-Hardwire").strip()
+    mfa_secret = os.getenv("MFA_SECRET", "").strip()  # Base32 secret (auto-generated if empty)
+    mfa_totp_drift = int(os.getenv("MFA_TOTP_DRIFT", "4"))
+    mfa_allow_backup_codes = os.getenv("MFA_ALLOW_BACKUP_CODES", "true").strip().lower() == "true"
 
     def ensure_dirs(self) -> None:
         """Create the data directories if they do not exist yet."""
