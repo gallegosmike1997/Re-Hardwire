@@ -5,7 +5,7 @@ import { useProfileStore } from '@/state/useProfileStore';
 import { Card, Notice, StatTile, Toggle } from '@/components/ui';
 import Link from 'next/link';
 import { LEGAL_VERSION } from '@/lib/legal';
-import { ThemeController } from '@/components/settings/ThemeController';
+import { ThemeController } from '@/components/settings/ThemeController';`r`nimport { ModelSelector } from @/components/modelSettings/ModelSelector;
 import { OfflineReadinessCard } from '@/components/offline/OfflineReadinessCard';
 import {
   chooseSpeechVoice,
@@ -408,6 +408,53 @@ export default function SettingsPage() {
           ))}
         </div>
       </Card>
+
+
+
+      <Card title="Saved memories (Week 54)" subtitle="Conversation summaries stored locally. Expires after 30 days.">
+        <div className="space-y-3">
+          <p className="text-xs leading-relaxed text-slate-400">
+            These are condensed summaries of your recent conversations, not the
+            full transcripts. Memories automatically expire after 30 days so a
+            lost device does not expose your history.
+          </p>
+
+          {getMemory().length === 0 ? (
+            <p className="text-sm text-slate-500">No saved memories yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {getMemory().map((entry) => (
+                <div
+                  key={entry.id}
+                  className="rounded-xl border border-edgesoft bg-panelsoft/40 px-3 py-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-slate-300 truncate">{entry.content}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const confirm = window.confirm('Permanently remove this memory?');
+                        if (confirm) removeMemory(entry.id);
+                      }}
+                      className="hw-focus flex-shrink-0 rounded-lg border border-alarm/30 bg-alarm/5 px-2.5 py-1 text-xs font-medium text-alarm hover:bg-alarm/10"
+                    >
+                      Forget
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[10px] leading-tight text-slate-500">
+                    {entry.type} · {new Date(entry.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <ExportMemoryModal
+        count={getMemory().length}
+        onTriggered={(c) => setExportCount((prev) => prev + c)}
+      />
 
       <OfflineReadinessCard />
 
