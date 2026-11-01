@@ -22,6 +22,7 @@ export interface UiPreferences {
   noteColor: 'yellow' | 'blue' | 'green' | 'pink' | 'orange';
   themeAccent: 'signal' | 'emerald' | 'sky' | 'purple' | 'orange';
   buttonGlow: 'soft' | 'medium' | 'strong';
+  subjectId: string;
 }
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
