@@ -18,6 +18,10 @@ export interface UiPreferences {
   quietMode: boolean;
   showSignals: boolean;
   sidebarCollapsed: boolean;
+  stickyNotesEnabled: boolean;
+  noteColor: 'yellow' | 'blue' | 'green' | 'pink' | 'orange';
+  themeAccent: 'signal' | 'emerald' | 'sky' | 'purple' | 'orange';
+  buttonGlow: 'soft' | 'medium' | 'strong';
 }
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
@@ -28,6 +32,8 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   quietMode: false,
   showSignals: true,
   sidebarCollapsed: false,
+  stickyNotesEnabled: false,
+  noteColor: 'yellow'
 };
 
 export interface ProfileState {

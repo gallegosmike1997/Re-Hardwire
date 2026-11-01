@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Icon, type IconName } from '@/components/ui/Icon';
+import { computeLocalRoute, getContextualProtocol } from '@/lib/offlineRouting';
 
 type MoodOption = {
   label: string;
@@ -14,6 +15,12 @@ type MoodOption = {
   recommendedProtocol: string;
   href: string;
   icon: IconName;
+};
+
+type ContextHints = {
+  timeOfDay?: 'morning' | 'afternoon' | 'evening' | 'night';
+  stressLevel?: 'low' | 'medium' | 'high';
+  energyLevel?: 'low' | 'medium' | 'high';
 };
 
 const MOODS: MoodOption[] = [
@@ -25,6 +32,21 @@ const MOODS: MoodOption[] = [
 
 export function MoodCheckInWidget() {
   const [selected, setSelected] = useState<MoodOption | null>(null);
+  const [contextHints, setContextHints] = useState<ContextHints | null>(null);
+  const [showContextualInfo, setShowContextualInfo] = useState(false);
+
+  useEffect(() => {
+    // Contextual hints will be populated when protocol is computed
+  }, [selected]);
+
+  const handleProtocolChange = (userText: string) => {
+    if (!userText.trim()) return;
+    
+    // Get context-aware protocol from the routing engine
+    const protocolInfo = getContextualProtocol(userText);
+    setContextHints(protocolInfo.contextualHints);
+    setShowContextualInfo(true);
+  };
 
   return (
     <Card title="How is your system right now?" subtitle="Take a 5-second pulse check to match your practice." glow={!selected}>
@@ -54,6 +76,16 @@ export function MoodCheckInWidget() {
               <Badge tone="signal">Recommended Match</Badge>
               <h3 className="mt-2 text-base font-semibold text-slate-100">{selected.recommendedProtocol}</h3>
               <p className="mt-1 text-xs leading-relaxed text-slate-300">{selected.description}</p>
+              {contextHints && showContextualInfo && (
+                <div className="mt-3 p-3 bg-panelsoft rounded border border-signal-500/20">
+                  <p className="text-xs font-medium text-slate-300">Context-aware hints:</p>
+                  <ul className="text-slate-400 text-sm space-y-1">
+                    {contextHints.timeOfDay && <li key="timeOfDay">Time of day: {contextHints.timeOfDay}</li>}
+                    {contextHints.stressLevel && <li key="stressLevel">Stress level: {contextHints.stressLevel}</li>}
+                    {contextHints.energyLevel && <li key="energyLevel">Energy level: {contextHints.energyLevel}</li>}
+                  </ul>
+                </div>
+              )}
             </div>
             <Button size="sm" variant="ghost" onClick={() => setSelected(null)}>
               Change

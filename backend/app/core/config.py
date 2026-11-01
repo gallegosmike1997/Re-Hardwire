@@ -62,25 +62,42 @@ class Settings:
     llm_timeout = float(os.getenv("LLM_TIMEOUT", "20"))
     llm_temperature = float(os.getenv("LLM_TEMPERATURE", "0.7"))
     llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "1024"))
+    # Week 54: Provider switching support
+    llm_provider_options = os.getenv("LLM_PROVIDER_OPTIONS", "local,openai,ollama,gemma").split(",")
+    llm_default_model = os.getenv("LLM_DEFAULT_MODEL", "re-hardwire-local")
 
     tts_voice = os.getenv("TTS_VOICE", "re-hardwire-core")
     tts_speed = float(os.getenv("TTS_SPEED", "1.0"))
     tts_words_per_minute = int(os.getenv("TTS_WORDS_PER_MINUTE", "150"))
 
-    # Never fall back to an example or weak signing key. A random development
-    # secret is safe for local use; a real auth deployment must set a stable
-    # secret through its secret manager.
+    # Authorization configuration.
+    # -------------------------------------------------------------------------
+    # A stable AUTH_SECRET must be set for any production deployment.  The secret
+    # is used to sign session tokens that identify individual users.  Without a
+    # valid secret the app refuses to start in production (see main.py).
+    # -------------------------------------------------------------------------
     _auth_secret = os.getenv("AUTH_SECRET", "").strip()
-    auth_secret = (
-        _auth_secret
-        if len(_auth_secret) >= 32 and _auth_secret.lower() not in {"replace-with-a-long-random-secret", "changeme"}
-        else secrets.token_urlsafe(32)
-    )
+    if not _auth_secret or _auth_secret in {
+        "replace-with-a-long-random-secret",
+        "changeme",
+    }:
+        raise RuntimeError(
+            "AUTH_SECRET must be set to a stable value (>= 32 chars) via environment "
+            "variable or .env file before starting the backend in production."
+        )
+    auth_secret = _auth_secret
+
     auth_token_ttl = int(os.getenv("AUTH_TOKEN_TTL", "86400"))
     #: Anonymous device sessions live for this long before needing a refresh.
     auth_session_ttl = int(os.getenv("AUTH_SESSION_TTL", str(30 * 86400)))
     #: An expired session token may still be refreshed within this grace window.
     auth_refresh_grace = int(os.getenv("AUTH_REFRESH_GRACE", str(7 * 86400)))
+
+    #: Per-user directory under ``users_dir``.  The value is the ``subject_id``
+    #: for the currently active user session.  When set, all history/profile/analytics
+    #: files are written under ``users_dir/<subject_id>/`` instead of the shared
+    #: top-level data dir, giving each user isolated storage.
+    subject_id = os.getenv("RE_HARDWIRE_SUBJECT_ID", "").strip()
 
     default_permissions = _env_list(
         "DEFAULT_PERMISSIONS",

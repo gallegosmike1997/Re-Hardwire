@@ -42,6 +42,8 @@ export interface LLMMessage {
 export interface LLMRequest {
   messages: LLMMessage[];
   protocol?: string;
+  model?: string;
+  provider?: 'local' | 'openai' | 'gemma' | 'phi3' | string;
 }
 
 export interface LLMResponse {

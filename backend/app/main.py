@@ -18,12 +18,26 @@ from app.rate_limit import RateLimitMiddleware
 from app.services import analytics
 
 
+# Production startup guard.
+# The backend may start in production only when:
+#   1. AUTH_SECRET is set (enforced in config.py), AND
+#   2. A RE_HARDWIRE_SUBJECT_ID is provided (per-user isolation).
 if settings.app_env in {"prod", "production"}:
-    raise RuntimeError(
-        "Production startup is disabled: the backend still uses shared JSON storage "
-        "and has no enforced authentication or per-user authorization. Keep it local "
-        "until those safeguards are implemented and reviewed."
-    )
+    if not settings.auth_secret:
+        raise RuntimeError(
+            "Production mode requires a valid AUTH_SECRET. Set it via the "
+            "AUTH_SECRET environment variable or .env file."
+        )
+    if not settings.subject_id:
+        raise RuntimeError(
+            "Production mode requires RE_HARDWIRE_SUBJECT_ID to identify the "
+            "per-user data directory. Set it via the RE_HARDWIRE_SUBJECT_ID "
+            "environment variable or .env file."
+        )
+    # At this point per-user storage under users_dir/<subject_id>/ is active;
+    # the shared top-level data dir is still writable but should not be used
+    # for new data.
+
 if "*" in settings.cors_origins:
     raise RuntimeError("CORS_ORIGINS must list explicit trusted origins; wildcard access is disabled.")
 

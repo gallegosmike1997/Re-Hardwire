@@ -119,6 +119,15 @@ def _remote_response(messages: List[dict]) -> str:
             "model": settings.llm_model, "messages": messages, "stream": False,
             "temperature": settings.llm_temperature, "max_tokens": settings.llm_max_tokens,
         }
+    elif provider == "gemma":
+        # Gemma provider (Google's open models)
+        url = (settings.llm_base_url or "http://localhost:11434").rstrip("/") + "/api/chat"
+        payload = {
+            "model": settings.llm_model,
+            "messages": messages,
+            "stream": False,
+            "options": {"temperature": settings.llm_temperature, "num_predict": settings.llm_max_tokens},
+        }
     elif provider == "ollama":
         url = (settings.llm_base_url or "http://localhost:11434").rstrip("/") + "/api/chat"
         payload = {

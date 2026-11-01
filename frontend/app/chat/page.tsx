@@ -5,6 +5,7 @@ import { ChatThread } from '@/components/chat/ChatThread';
 import { ConversationControls } from '@/components/chat/ConversationControls';
 import { RouteInspector } from '@/components/chat/RouteInspector';
 import { CrisisBar } from '@/components/safety/CrisisBar';
+import { ModelSelector } from '@/components/chat/ModelSelector';
 import { useChatStore } from '@/state/useChatStore';
 
 export default function ChatPage() {
@@ -26,6 +27,7 @@ export default function ChatPage() {
             </p>
           </div>
         </div>
+        <ModelSelector />
         <span className={[
           'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em]',
           temporaryMode
