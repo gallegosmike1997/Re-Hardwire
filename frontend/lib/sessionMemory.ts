@@ -72,6 +72,57 @@ function setStorage<T>(key: string, value: T): void {
 }
 
 function removeStorage(key: string): void {
+/** Share window timestamps for support plan sharing. */
+export const SHARE_WINDOW_KEY = 're-hardwire-share-windows-v1';
+
+/** A share window entry allows temporary access to support plan data. */
+export interface ShareWindowEntry {
+  id: string;
+  planId: string;
+  grantedTo: 'coach' | 'therapist' | 'family' | 'custom';
+  grantedToName?: string;
+  expiresAt: string;
+  consentGivenAt: string;
+  consentRevokedAt?: string;
+  dataScope: 'summary' | 'full';
+}
+
+/** Current share windows for this device. */
+export function getShareWindows(): ShareWindowEntry[] {
+  const stored = getStorage<ShareWindowEntry[]>(SHARE_WINDOW_KEY);
+  if (!stored) return [];
+  const now = Date.now();
+  const fresh = stored.filter((entry) => new Date(entry.expiresAt).getTime() > now);
+  if (fresh.length !== stored.length) {
+    setStorage(SHARE_WINDOW_KEY, fresh);
+  }
+  return fresh;
+}
+
+/** Add a new share window entry. */
+export function addShareWindow(entry: Omit<ShareWindowEntry, 'id' | 'expiresAt' | 'consentGivenAt'>): string {
+  const id = `share-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const now = new Date().toISOString();
+  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const wrapped: ShareWindowEntry = { ...entry, id, expiresAt: expires, consentGivenAt: now };
+  const existing = getShareWindows();
+  setStorage(SHARE_WINDOW_KEY, [...existing, wrapped]);
+  return id;
+}
+
+/** Revoke a share window (remove access). */
+export function revokeShareWindow(id: string): void {
+  const existing = getShareWindows();
+  setStorage(SHARE_WINDOW_KEY, existing.filter((entry) => entry.id !== id));
+}
+
+/** Check if a share window is valid for a given plan and scope. */
+function isShareValid(planId: string, scope: 'summary' | 'full'): boolean {
+  const windows = getShareWindows();
+  return windows.some(
+    (window) => window.planId === planId && window.dataScope === scope && new Date(window.expiresAt).getTime() > Date.now()
+  );
+}
   if (typeof window === 'undefined') return;
   localStorage.removeItem(key);
 }
