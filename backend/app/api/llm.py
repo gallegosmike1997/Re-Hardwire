@@ -6,7 +6,7 @@ from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.llm.client import ProviderError, stream_llm_response
 from app.core.llm.streaming import stream_reply
@@ -31,6 +31,12 @@ class LLMRequest(BaseModel):
 
     messages: List[LLMMessage] = Field(default_factory=list, max_length=40)
     protocol: Optional[str] = Field(default=None, max_length=100)
+    coaching_context: List[str] = Field(default_factory=list, max_length=3)
+
+    @field_validator("coaching_context")
+    @classmethod
+    def bound_coaching_context(cls, entries: List[str]) -> List[str]:
+        return [" ".join(entry.split())[:240] for entry in entries if entry.strip()]
 
 
 def _latest_user_text(payload: LLMRequest) -> str:
@@ -65,6 +71,8 @@ def generate(payload: LLMRequest, claims: dict = Depends(auth.require_session)) 
 
     decision = route_text(last_user, payload.protocol)
     profile = profile_store.load_profile(subject)
+    if payload.coaching_context:
+        profile = {**profile, "recent_wins": payload.coaching_context}
 
     try:
         content = stream_llm_response(
@@ -104,6 +112,8 @@ async def generate_stream(payload: LLMRequest, claims: dict = Depends(auth.requi
 
     decision = route_text(last_user, payload.protocol)
     profile = profile_store.load_profile(subject)
+    if payload.coaching_context:
+        profile = {**profile, "recent_wins": payload.coaching_context}
     route = {"protocol": decision.protocol, "confidence": decision.confidence,
              "tags": decision.tags, "emotionalState": decision.emotional_state,
              "nextAction": decision.next_action}

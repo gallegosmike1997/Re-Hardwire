@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useProfileStore } from '@/state/useProfileStore';
-import { Card, Notice, StatTile, Toggle } from '@/components/ui';
+import { Button, Card, Notice, StatTile, Toggle } from '@/components/ui';
 import Link from 'next/link';
 import { LEGAL_VERSION } from '@/lib/legal';
-import { ThemeController } from '@/components/settings/ThemeController';`r`nimport { ModelSelector } from @/components/modelSettings/ModelSelector;
+import { ThemeController } from '@/components/settings/ThemeController';
+import { ModelSelector } from '@/components/modelSettings/ModelSelector';
 import { OfflineReadinessCard } from '@/components/offline/OfflineReadinessCard';
 import {
   chooseSpeechVoice,
@@ -21,6 +22,7 @@ import {
 } from '@/lib/encryptedBackup';
 import { createSyncPayload, restoreSyncPayload } from '@/lib/qrSync';
 import { QrSyncModal } from '@/components/settings/QrSyncModal';
+import { getMemory } from '@/lib/sessionMemory';
 
 const SPEECH_PREVIEWS: Record<string, string> = {
   de: 'Ich höre dir zu. Wir können einen Schritt nach dem anderen gehen.',
@@ -100,6 +102,14 @@ export default function SettingsPage() {
   const resetProfile = useProfileStore((state) => state.resetProfile);
   const ui = useProfileStore((state) => state.ui);
   const updateUi = useProfileStore((state) => state.updateUi);
+  const profiles = useProfileStore((state) => state.profiles);
+  const activeProfileId = useProfileStore((state) => state.activeProfileId);
+  const syncStatus = useProfileStore((state) => state.syncStatus);
+  const syncConflicts = useProfileStore((state) => state.syncConflicts);
+  const createProfile = useProfileStore((state) => state.createProfile);
+  const switchProfile = useProfileStore((state) => state.switchProfile);
+  const syncProfile = useProfileStore((state) => state.syncProfile);
+  const [newProfileName, setNewProfileName] = useState('');
   const [speechVoices, setSpeechVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [isPreviewingSpeech, setIsPreviewingSpeech] = useState(false);
   const [backupPassphrase, setBackupPassphrase] = useState('');
@@ -266,6 +276,53 @@ export default function SettingsPage() {
         <StatTile label="Permissions" value={`${permissions.length} granted`} icon="shield" tone="win" />
       </div>
 
+      <Card title="Local profiles" subtitle="Separate this device's saved data and backend session by profile.">
+        <div className="space-y-3">
+          <label className="flex flex-col gap-1.5 text-xs text-slate-400">
+            Active profile
+            <select
+              aria-label="Active local profile"
+              className="hw-focus rounded-lg border border-edge bg-panel px-2.5 py-2 text-sm text-slate-200"
+              value={activeProfileId}
+              onChange={(event) => switchProfile(event.target.value)}
+              disabled={isSaving}
+            >
+              {profiles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </label>
+          <form
+            className="flex flex-wrap gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (createProfile(newProfileName)) setNewProfileName('');
+            }}
+          >
+            <input
+              aria-label="New profile name"
+              className="hw-focus min-h-10 min-w-0 flex-1 rounded-lg border border-edge bg-panel px-3 text-sm text-slate-200"
+              value={newProfileName}
+              onChange={(event) => setNewProfileName(event.target.value)}
+              maxLength={60}
+              placeholder="New profile name"
+            />
+            <Button type="submit" size="sm" disabled={!newProfileName.trim() || isSaving}>Add profile</Button>
+          </form>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-edge/70 pt-3">
+            <p className="text-xs text-slate-400" role="status" aria-live="polite">
+              {syncStatus === 'syncing' ? 'Syncing preferences…'
+                : syncStatus === 'synced' ? 'Preferences are synced.'
+                  : syncStatus === 'offline' ? 'Saved locally; waiting for a connection.'
+                    : syncStatus === 'conflict' ? `Conflicts resolved with this device's values: ${syncConflicts.join(', ')}`
+                      : syncStatus === 'error' ? 'Preferences are saved locally; sync needs attention.'
+                        : 'Preferences save on this device first.'}
+            </p>
+            <Button type="button" size="sm" onClick={() => void syncProfile()} disabled={isSaving}>
+              Sync preferences
+            </Button>
+          </div>
+        </div>
+      </Card>
+
       <Card title="Device preferences" subtitle="Available offline on this device.">
         <div className="space-y-3">
           <label className="flex items-center justify-between gap-4 rounded-lg border border-edge/70 bg-panelsoft/50 px-3 py-2.5">
@@ -286,6 +343,13 @@ export default function SettingsPage() {
             description="Enable the Speak control beneath coach replies."
             checked={Boolean(prefs.ttsEnabled)}
             onChange={(next) => setPref('ttsEnabled', next)}
+            disabled={isSaving || !profile}
+          />
+          <Toggle
+            label="Personalize coaching"
+            description="When enabled, include up to three recent wins in coach requests. This context is optional and can be turned off anytime."
+            checked={prefs.personalizedCoachingEnabled === true}
+            onChange={(next) => setPref('personalizedCoachingEnabled', next)}
             disabled={isSaving || !profile}
           />
           <div className="space-y-2 rounded-lg border border-edge/70 bg-panelsoft/50 px-3 py-3">
@@ -450,11 +514,6 @@ export default function SettingsPage() {
           )}
         </div>
       </Card>
-
-      <ExportMemoryModal
-        count={getMemory().length}
-        onTriggered={(c) => setExportCount((prev) => prev + c)}
-      />
 
       <OfflineReadinessCard />
 

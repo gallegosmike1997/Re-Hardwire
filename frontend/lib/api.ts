@@ -44,6 +44,7 @@ export interface LLMRequest {
   protocol?: string;
   model?: string;
   provider?: 'local' | 'openai' | 'gemma' | 'phi3' | string;
+  coaching_context?: string[];
 }
 
 export interface LLMResponse {

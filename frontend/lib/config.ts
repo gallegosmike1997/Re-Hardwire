@@ -150,13 +150,18 @@ export const roadmapExtensions = {
     multilingualCrisisProtocols: false,     // Week 62
     rpmIntegration: false,                  // Week 63
 
-    // Year 3: Decentralized Identity & Sovereign Data
+    // Week 68-70: Multi-user, preference sync, and personalized coaching
+    multiUserProfiles: true,
+    cloudPreferenceSync: true,
+    personalizedCoaching: true,
+
+    // Deferred Year 3: Decentralized Identity & Sovereign Data
     didIntegration: false,                  // Week 65
     verifiableCredentials: false,           // Week 66
     edgeComputeModelAggregation: false,     // Week 67
-    offlineFirstFederatedLearning: false,   // Week 68
-    patientGeneratedResearch: false,        // Week 69
-    sdkIntegration: false,                  // Week 70
+    offlineFirstFederatedLearning: false,
+    patientGeneratedResearch: false,
+    sdkIntegration: false,
     fhirSmarterApis: false,                 // Week 71
 
     // Year 3: Version 5.0 Global Release

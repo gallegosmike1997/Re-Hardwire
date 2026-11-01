@@ -11,7 +11,12 @@
  * app never blocks on a network call it is not meant to make.
  */
 import { config } from './config';
-import { getStorage, removeStorage, setStorage } from './storage';
+import {
+  getActiveProfileId,
+  getGlobalStorage,
+  removeGlobalStorage,
+  setGlobalStorage,
+} from './storage';
 
 export interface SessionResponse {
   token: string;
@@ -21,15 +26,19 @@ export interface SessionResponse {
 
 const TOKEN_KEY = 're-hardwire-session-token';
 /** In-flight session creation, so concurrent callers share one request. */
-let inflight: Promise<string | null> | null = null;
+let inflight: { profileId: string; promise: Promise<string | null> } | null = null;
 
-function readStoredToken(): string | null {
-  return getStorage<string>(TOKEN_KEY);
+function tokenKey(profileId: string): string {
+  return profileId === 'default' ? TOKEN_KEY : `${TOKEN_KEY}:${profileId}`;
 }
 
-function storeToken(token: string | null): void {
-  if (token) setStorage(TOKEN_KEY, token);
-  else removeStorage(TOKEN_KEY);
+function readStoredToken(profileId = getActiveProfileId()): string | null {
+  return getGlobalStorage<string>(tokenKey(profileId));
+}
+
+function storeToken(token: string | null, profileId = getActiveProfileId()): void {
+  if (token) setGlobalStorage(tokenKey(profileId), token);
+  else removeGlobalStorage(tokenKey(profileId));
 }
 
 /** The currently cached token, or null when a session must be created. */
@@ -62,24 +71,26 @@ async function postJson(url: string, body: unknown): Promise<SessionResponse | n
 export async function ensureSession(): Promise<string | null> {
   if (!config.api.baseUrl) return null;
 
-  const cached = readStoredToken();
+  const profileId = getActiveProfileId();
+  const cached = readStoredToken(profileId);
   if (cached) return cached;
 
-  if (!inflight) {
-    inflight = (async () => {
+  if (!inflight || inflight.profileId !== profileId) {
+    const promise = (async () => {
       try {
         const created = await postJson(`${config.api.baseUrl}/api/session`, {});
         if (!created) return null;
-        storeToken(created.token);
-        return created.token;
+        storeToken(created.token, profileId);
+        return getActiveProfileId() === profileId ? created.token : null;
       } catch {
         return null;
       } finally {
-        inflight = null;
+        if (inflight?.profileId === profileId) inflight = null;
       }
     })();
+    inflight = { profileId, promise };
   }
-  return inflight;
+  return inflight.promise;
 }
 
 /**
@@ -95,10 +106,11 @@ let refreshInflight: Promise<string | null> | null = null;
 
 export async function refreshSession(): Promise<string | null> {
   if (!config.api.baseUrl) return null;
+  const profileId = getActiveProfileId();
 
   if (!refreshInflight) {
     refreshInflight = (async () => {
-      const previous = readStoredToken();
+      const previous = readStoredToken(profileId);
       if (previous) {
         // The refresh endpoint revokes the presented token when it issues the
         // replacement, so only store the new token when the refresh started
@@ -106,11 +118,11 @@ export async function refreshSession(): Promise<string | null> {
         // already moved this device on to its own replacement.
         try {
           const renewed = await postJson(`${config.api.baseUrl}/api/session/refresh`, { token: previous });
-          if (renewed && readStoredToken() === previous) {
-            storeToken(renewed.token);
-            return renewed.token;
+          if (renewed && readStoredToken(profileId) === previous) {
+            storeToken(renewed.token, profileId);
+            return getActiveProfileId() === profileId ? renewed.token : null;
           }
-          if (renewed) return renewed.token;
+          if (renewed) return getActiveProfileId() === profileId ? renewed.token : null;
         } catch {
           /* fall through to a fresh session */
         }
@@ -118,11 +130,12 @@ export async function refreshSession(): Promise<string | null> {
 
       // Refresh refused (or the stored token already moved on): only mint a
       // fresh anonymous subject when this call still owns the stored token.
-      if (readStoredToken() === previous) {
-        storeToken(null);
+      if (readStoredToken(profileId) === previous) {
+        storeToken(null, profileId);
+        if (getActiveProfileId() !== profileId) return null;
         return ensureSession();
       }
-      return readStoredToken();
+      return getActiveProfileId() === profileId ? readStoredToken(profileId) : null;
     })().finally(() => {
       refreshInflight = null;
     });

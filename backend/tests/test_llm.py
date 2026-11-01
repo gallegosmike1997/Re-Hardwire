@@ -107,6 +107,13 @@ class TestResponseGeneration:
         )
         assert "Resilience Builder Level 3" in reply
 
+    def test_opted_in_recent_win_personalises_local_reply(self):
+        reply = stream_llm_response(
+            [{"role": "user", "content": "I feel stuck"}],
+            profile={"recent_wins": ["I took a short walk yesterday."]},
+        )
+        assert "A recent win you chose to note was: I took a short walk yesterday." in reply
+
     def test_generate_response_matches_stream_llm_response(self):
         messages = [{"role": "user", "content": "hello"}]
         assert generate_response(messages) == stream_llm_response(messages)

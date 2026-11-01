@@ -19,7 +19,7 @@ from pathlib import Path
 from app.core.config import settings
 from app.core.storage import users, profile as profile_store, history as history_store
 
-from ._json import read_json, write_json
+from app.core.storage._json import read_json, write_json
 
 #: Base path in Google Drive for Re-Hardwire user data
 _DRIVE_BASE_FOLDER_ID = "app_re_hardwire_user_data"  # Will be created on first sync

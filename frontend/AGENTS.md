@@ -1,3 +1,5 @@
+# This is NOT the Next.js you know
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

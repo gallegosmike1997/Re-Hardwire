@@ -11,6 +11,8 @@ import { streamConversation } from '@/lib/stream';
 import { computeLocalRoute } from '@/lib/offlineRouting';
 import { useHistoryStore } from './useHistoryStore';
 import { useProtocolStore } from './useProtocolStore';
+import { useProfileStore } from './useProfileStore';
+import { useSuccessStore } from './useSuccessStore';
 import { getStorage, removeStorage, setStorage } from '@/lib/storage';
 
 let activeRequest: AbortController | null = null;
@@ -162,6 +164,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     const userMessage: LLMMessage = { role: 'user', content: body, created_at: stamp() };
     const transcript = [...get().messages, userMessage];
+    const profile = useProfileStore.getState().profile;
+    const coachingContext = profile?.preferences.personalizedCoachingEnabled === true
+      ? useSuccessStore.getState().wins.slice(0, 3).map((win) => win.text.slice(0, 240))
+      : [];
 
     set({ messages: transcript, input: '', isSending: true, error: null });
     removeStorage(DRAFT_KEY);
@@ -209,6 +215,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ...message,
           content: message.content.slice(-MAX_CONTEXT_MESSAGE_CHARS),
         })),
+        ...(coachingContext.length ? { coaching_context: coachingContext } : {}),
         ...(!get().autoRouting && useProtocolStore.getState().selected
           ? { protocol: useProtocolStore.getState().selected } : {}),
       }, controller.signal, (delta) => {

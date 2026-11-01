@@ -12,6 +12,7 @@ import { ThemeController } from '@/components/settings/ThemeController';
 import { FirstLaunchModal } from '@/components/legal/FirstLaunchModal';
 import { useHistoryStore } from '@/state/useHistoryStore';
 import { usePracticeStore } from '@/state/usePracticeStore';
+import { useSuccessStore } from '@/state/useSuccessStore';
 
 function ConnectionBanner() {
   const [online, setOnline] = useState(true);
@@ -69,6 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     hydrateProfile();
     hydrateProtocol();
     hydratePractices();
+    useSuccessStore.getState().hydrate();
 
     void check();
     void loadProfile();

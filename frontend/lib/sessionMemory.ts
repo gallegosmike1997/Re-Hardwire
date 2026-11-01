@@ -7,8 +7,11 @@
  * Created: 11/1/2026
  */
 
+import { getStorage, removeStorage, setStorage } from './storage';
+
 /** The on-device repository key for user memories. */
 export const MEMORY_KEY = 're-hardwire-memory-v1';
+const SHARE_WINDOW_KEY = 're-hardwire-share-windows-v1';
 
 /** A memory is a compact, summary-style record that survives session resets. */
 export interface MemoryEntry {
@@ -50,30 +53,6 @@ export function removeMemory(id: string): void {
 export function clearAllMemory(): void {
   removeStorage(MEMORY_KEY);
 }
-
-/* Internals (kept private to this module). */
-function getStorage<T>(key: string): T | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : null;
-  } catch {
-    return null;
-  }
-}
-
-function setStorage<T>(key: string, value: T): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // storage full or unavailable
-  }
-}
-
-function removeStorage(key: string): void {
-/** Share window timestamps for support plan sharing. */
-export const SHARE_WINDOW_KEY = 're-hardwire-share-windows-v1';
 
 /** A share window entry allows temporary access to support plan data. */
 export interface ShareWindowEntry {
@@ -122,9 +101,6 @@ function isShareValid(planId: string, scope: 'summary' | 'full'): boolean {
   return windows.some(
     (window) => window.planId === planId && window.dataScope === scope && new Date(window.expiresAt).getTime() > Date.now()
   );
-}
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(key);
 }
 
 function isExpiredTimestamp(createdAt: string | undefined, now = Date.now()): boolean {

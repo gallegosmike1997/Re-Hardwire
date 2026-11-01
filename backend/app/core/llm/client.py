@@ -94,6 +94,19 @@ def _local_response(
         core_reflection = "I hear the weight and intention behind what you are sharing."
         action_advice = "What is the single most supportive next step you can take?"
 
+    raw_wins = (profile or {}).get("recent_wins")
+    if isinstance(raw_wins, list):
+        recent_win = next(
+            (" ".join(item.split()).replace('"', "")[:160] for item in raw_wins
+             if isinstance(item, str) and item.strip()),
+            "",
+        )
+        if recent_win:
+            action_advice = (
+                f"A recent win you chose to note was: {recent_win}. "
+                "Could a small part of what helped then be available today?"
+            )
+
     cleaned_input = user_text.strip()
     if len(cleaned_input) > 120:
         cleaned_input = cleaned_input[:117] + "..."
