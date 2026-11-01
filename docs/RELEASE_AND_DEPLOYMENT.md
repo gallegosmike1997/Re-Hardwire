@@ -45,6 +45,10 @@ npx cap sync
 
 For Android, install Android Studio and a supported Android SDK/JDK, then open `frontend/android` in Android Studio. Build a debug APK for beta device checks; a signed Android App Bundle (`.aab`) requires a protected upload key and signing configuration before Play Store release.
 
+The generated Android project uses Android Gradle Plugin 8.2.1 and Gradle 8.2.1, which require Gradle to run with JDK 17. In Android Studio, set **Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JDK** to JDK 17 (use **Download JDK** if needed). Newer bundled JDKs can fail with `Unsupported class file major version 69`.
+
+After changing frontend code, run `npm ci`, `npm run build:capacitor`, and `npm run cap:sync` from `frontend/` before opening or rerunning the Android project. This copies the static web app into `frontend/android/app/src/main/assets/public`.
+
 For iOS, open `frontend/ios/App/App.xcworkspace` in Xcode on macOS. A simulator build can be used for beta verification. Device distribution, TestFlight, and App Store submission require Apple signing assets and an Apple Developer account; none are stored in this repository.
 
 After changing the web app, rebuild and run `npx cap sync` from `frontend/` before opening the native IDE. Do not commit signing certificates, provisioning profiles, API credentials, or user data.

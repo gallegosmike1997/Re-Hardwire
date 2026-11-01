@@ -4,6 +4,7 @@ import { ChatComposer } from '@/components/chat/ChatComposer';
 import { ChatThread } from '@/components/chat/ChatThread';
 import { ConversationControls } from '@/components/chat/ConversationControls';
 import { RouteInspector } from '@/components/chat/RouteInspector';
+import { CrisisBar } from '@/components/safety/CrisisBar';
 import { useChatStore } from '@/state/useChatStore';
 
 export default function ChatPage() {
@@ -32,9 +33,10 @@ export default function ChatPage() {
             : 'border-edge bg-panel/70 text-slate-400',
         ].join(' ')} role="status">
           <span className={['h-1.5 w-1.5 rounded-full', temporaryMode ? 'bg-signal-300 shadow-[0_0_9px_rgba(34,211,238,0.7)]' : 'bg-slate-500'].join(' ')} />
-          {temporaryMode ? 'Temporary · memory only' : 'Saved on this device'}
+          {temporaryMode ? 'Temporary · memory only' : 'Saved on this device - not encrypted'}
         </span>
       </header>
+      <CrisisBar />
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
         <section
           aria-label="Conversation"

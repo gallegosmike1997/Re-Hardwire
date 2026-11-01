@@ -204,7 +204,15 @@ def get_routing_state() -> Dict[str, Any]:
 
 @router.get("/stats")
 def route_stats() -> dict:
-    """Aggregate routing activity for the Lab and Dev dashboards."""
+    """Aggregate routing activity for the Lab and Dev dashboards.
+
+    Dev-only: refuses when APP_ENV is anything but development, so a
+    future deployment cannot expose aggregate usage without review.
+    """
+    from app.core.config import settings
+
+    if settings.app_env != "development":
+        raise HTTPException(status_code=403, detail="Stats are disabled outside development.")
     return analytics.summary()
 
 # Health check for enhanced routing
