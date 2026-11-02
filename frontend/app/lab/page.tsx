@@ -42,13 +42,7 @@ export default function LabPage() {
     } else {
       const local = computeLocalRoute(text);
       useProtocolStore.setState({
-        preview: {
-          protocol: local.protocol.name,
-          confidence: 0.90,
-          tags: [local.protocol.focus, local.emotionalState],
-          nextAction: local.nextAction,
-          emotionalState: local.emotionalState,
-        },
+        preview: local.routeResponse,
       });
     }
   };
@@ -87,7 +81,7 @@ export default function LabPage() {
               key={text}
               type="button"
               onClick={() => void handlePreview(text)}
-              disabled={isRouting || !online}
+              disabled={isRouting}
               className={[
                 'rounded-lg border border-edgesoft bg-panelsoft px-3 py-1.5 text-left',
                 'text-xs text-slate-300 transition-colors hover:border-signal-500/40 hover:text-slate-100',

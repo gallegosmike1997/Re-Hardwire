@@ -37,5 +37,3 @@ export interface GovernanceModel {
   patentPolicy: string;
 }
 
-/** Exported functions */
-export { Year5Outcomes, ClinicalOutcomes, GovernanceModel };

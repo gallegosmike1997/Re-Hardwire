@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import {
   FIRST_LAUNCH_SUMMARY,
@@ -17,16 +17,29 @@ function readAccepted(): boolean {
   }
 }
 
+const LEGAL_STORAGE_EVENT = 're-hardwire-legal-storage';
+
+function subscribeToLegalAcceptance(onChange: () => void): () => void {
+  window.addEventListener('storage', onChange);
+  window.addEventListener(LEGAL_STORAGE_EVENT, onChange);
+  return () => {
+    window.removeEventListener('storage', onChange);
+    window.removeEventListener(LEGAL_STORAGE_EVENT, onChange);
+  };
+}
+
 export function FirstLaunchModal() {
-  const [visible, setVisible] = useState(() =>
-    typeof window === 'undefined' ? false : !readAccepted(),
+  const visible = useSyncExternalStore(
+    subscribeToLegalAcceptance,
+    () => !readAccepted(),
+    () => false,
   );
 
   if (!visible) return null;
 
   const accept = () => {
     setStorage(LEGAL_STORAGE_KEY, LEGAL_ACCEPTED_VERSION);
-    setVisible(false);
+    window.dispatchEvent(new Event(LEGAL_STORAGE_EVENT));
   };
 
   return (

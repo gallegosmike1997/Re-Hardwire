@@ -14,19 +14,23 @@ from .client import (
 from .prompts import build_messages, last_user_message
 
 
-async def stream_reply(messages, protocol=None, emotional_state=None, next_action=None, profile=None):
+async def stream_reply(
+    messages, protocol=None, emotional_state=None, next_action=None, profile=None,
+    provider=None, model=None,
+):
     text = last_user_message(messages)
     if is_crisis(text):
         yield CRISIS_REPLY
         return
-    if settings.llm_provider == "local":
+    provider = provider or settings.llm_provider
+    model = model or settings.llm_model
+    if provider == "local":
         yield _local_response(text, protocol, emotional_state, next_action, profile)
         return
-    provider = settings.llm_provider
     headers = {}
-    payload = {"model": settings.llm_model, "stream": True,
+    payload = {"model": model, "stream": True,
                "messages": build_messages(messages, protocol, emotional_state, next_action, profile)}
-    if provider == "ollama":
+    if provider in {"ollama", "gemma"}:
         url = (settings.llm_base_url or "http://localhost:11434").rstrip("/") + "/api/chat"
         payload["options"] = {"temperature": settings.llm_temperature,
                               "num_predict": settings.llm_max_tokens, "num_ctx": 4096}
@@ -38,7 +42,7 @@ async def stream_reply(messages, protocol=None, emotional_state=None, next_actio
         payload.update(temperature=settings.llm_temperature, max_tokens=settings.llm_max_tokens)
     else:
         raise ProviderError("Unsupported LLM provider.")
-    if not settings.llm_model or settings.llm_model == "re-hardwire-local":
+    if not model or model == "re-hardwire-local":
         raise ProviderError("Configure LLM_MODEL for the selected provider.")
     received = False
     try:
@@ -59,7 +63,7 @@ async def stream_reply(messages, protocol=None, emotional_state=None, next_actio
                     data = json.loads(line)
                     if "error" in data:
                         raise ValueError("Provider error")
-                    if provider == "ollama":
+                    if provider in {"ollama", "gemma"}:
                         content = data.get("message", {}).get("content", "")
                     else:
                         choices = data.get("choices", [])
@@ -69,7 +73,7 @@ async def stream_reply(messages, protocol=None, emotional_state=None, next_actio
                             raise ValueError("Invalid content")
                         received = True
                         yield content
-                    if provider == "ollama" and data.get("done"):
+                    if provider in {"ollama", "gemma"} and data.get("done"):
                         if not received:
                             raise ValueError("Empty stream")
                         return

@@ -40,4 +40,3 @@ export function accessibilityNotice(element: string, role: string, props: Record
   return checks.length > 0 ? `Accessibility concern: ${checks.join(', ')}` : 'OK';
 }
 
-export { contrastRatio, meetsWcagAA, accessibilityNotice };

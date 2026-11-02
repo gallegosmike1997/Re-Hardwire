@@ -165,6 +165,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const userMessage: LLMMessage = { role: 'user', content: body, created_at: stamp() };
     const transcript = [...get().messages, userMessage];
     const profile = useProfileStore.getState().profile;
+    const coachModel = profile?.preferences.coachModel;
+    const coachProvider = profile?.preferences.coachProvider;
     const coachingContext = profile?.preferences.personalizedCoachingEnabled === true
       ? useSuccessStore.getState().wins.slice(0, 3).map((win) => win.text.slice(0, 240))
       : [];
@@ -184,13 +186,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: [...transcript, offlinePersonalizedResponse(body)],
         isSending: false,
         error: null,
-        lastRoute: {
-          protocol: localRoute.protocol.name,
-          confidence: 0.85,
-          tags: [localRoute.protocol.focus, localRoute.emotionalState],
-          nextAction: localRoute.nextAction,
-          emotionalState: localRoute.emotionalState,
-        },
+        lastRoute: localRoute.routeResponse,
       });
       if (get().autoRouting && localRoute.protocol?.name) {
         useProtocolStore.getState().select(localRoute.protocol.name);
@@ -215,6 +211,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ...message,
           content: message.content.slice(-MAX_CONTEXT_MESSAGE_CHARS),
         })),
+        ...(typeof coachModel === 'string' ? { model: coachModel } : {}),
+        ...(typeof coachProvider === 'string' ? { provider: coachProvider } : {}),
         ...(coachingContext.length ? { coaching_context: coachingContext } : {}),
         ...(!get().autoRouting && useProtocolStore.getState().selected
           ? { protocol: useProtocolStore.getState().selected } : {}),
@@ -235,13 +233,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({
           messages: [...transcript, offlinePersonalizedResponse(body)],
           error: null,
-          lastRoute: {
-            protocol: localRoute.protocol.name,
-            confidence: 0.85,
-            tags: [localRoute.protocol.focus, localRoute.emotionalState],
-            nextAction: localRoute.nextAction,
-            emotionalState: localRoute.emotionalState,
-          },
+          lastRoute: localRoute.routeResponse,
         });
         if (get().autoRouting && localRoute.protocol?.name) {
           useProtocolStore.getState().select(localRoute.protocol.name);

@@ -2,6 +2,8 @@
 
 from fastapi import APIRouter
 
+from app.core.config import settings
+
 router = APIRouter()
 
 
@@ -27,5 +29,15 @@ def capabilities() -> dict:
             "historyBackendHasPerUserIsolation": True,
             "deviceSessionRequired": True,
             "profileStorage": "local-json-per-device-subject",
+        },
+        "llm": {
+            "providers": [
+                provider.strip().lower()
+                for provider in settings.llm_provider_options
+                if provider.strip().lower() in {"local", "openai", "ollama", "gemma"}
+                and (provider.strip().lower() != "openai" or bool(settings.llm_api_key))
+            ],
+            "defaultProvider": settings.llm_provider,
+            "defaultModel": settings.llm_model,
         },
     }

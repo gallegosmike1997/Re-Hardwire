@@ -16,6 +16,19 @@ class TestHealth:
         assert body["endpoints"]["llm"] == "/api/llm"
 
 
+class TestCapabilities:
+    def test_llm_capabilities_only_include_configured_providers(self, client, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "llm_provider_options", ["local", "openai", "ollama"])
+        monkeypatch.setattr(settings, "llm_api_key", "")
+        response = client.get("/api/v1/capabilities")
+        assert response.status_code == 200
+        llm = response.json()["llm"]
+        assert llm["providers"] == ["local", "ollama"]
+        assert llm["defaultProvider"] == settings.llm_provider
+
+
 class TestRouteEndpoint:
     def test_post_route_returns_the_route_response_shape(self, client):
         response = client.post("/api/route", json={"userText": "I am overwhelmed today"})

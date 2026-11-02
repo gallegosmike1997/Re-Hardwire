@@ -14,28 +14,54 @@ interface QrSyncModalProps {
 }
 
 export function QrSyncModal({ mode, onClose, onSuccess, onError }: QrSyncModalProps) {
-  const [payloadText, setPayloadText] = useState(() => (mode === 'export' ? createSyncPayload() : ''));
+  const [payloadText, setPayloadText] = useState('');
   const [importCode, setImportCode] = useState('');
+  const [passphrase, setPassphrase] = useState('');
+  const [isWorking, setIsWorking] = useState(false);
 
   if (!mode) return null;
 
-  const handleCopy = () => {
+  const handleCreate = async () => {
+    if (passphrase.length < 12) {
+      onError('Use a passphrase with at least 12 characters.');
+      return;
+    }
+    setIsWorking(true);
+    try {
+      setPayloadText(await createSyncPayload(passphrase));
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Could not create an encrypted sync payload.');
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  const handleCopy = async () => {
     if (!payloadText) return;
-    navigator.clipboard?.writeText(payloadText);
+    await navigator.clipboard?.writeText(payloadText);
     onSuccess('Sync payload copied to clipboard.');
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (!importCode.trim()) {
       onError('Please paste a valid sync payload code.');
       return;
     }
-    const success = restoreSyncPayload(importCode.trim());
-    if (success) {
-      onSuccess('Successfully restored data from sync payload. Reloading…');
+    if (passphrase.length < 12) {
+      onError('Enter the passphrase used to create this sync payload.');
+      return;
+    }
+    setIsWorking(true);
+    try {
+      const restored = await restoreSyncPayload(importCode.trim(), passphrase);
+      onSuccess(restored.legacyUnencrypted
+        ? `Restored ${restored.count} items from a legacy payload that was not encrypted. Reloading…`
+        : `Restored ${restored.count} encrypted items. Reloading…`);
       window.setTimeout(() => window.location.reload(), 600);
-    } else {
-      onError('Could not restore from sync payload. Invalid or corrupted code.');
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Could not restore the encrypted sync payload.');
+    } finally {
+      setIsWorking(false);
     }
   };
 
@@ -43,8 +69,8 @@ export function QrSyncModal({ mode, onClose, onSuccess, onError }: QrSyncModalPr
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-void/80 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md">
         <Card
-          title={mode === 'export' ? 'Air-Gapped QR Sync Export' : 'Restore from Sync Code'}
-          subtitle={mode === 'export' ? 'Transfer your encrypted backup payload directly between devices.' : 'Paste your sync code to restore your support plan and care network.'}
+          title={mode === 'export' ? 'Encrypted device transfer' : 'Restore encrypted transfer'}
+          subtitle={mode === 'export' ? 'Create a passphrase-protected payload to move profile data between devices.' : 'Paste a payload and enter the passphrase used to encrypt it.'}
           glow
           padded
         >
@@ -52,8 +78,21 @@ export function QrSyncModal({ mode, onClose, onSuccess, onError }: QrSyncModalPr
             {mode === 'export' ? (
               <div className="space-y-3">
                 <p className="text-xs leading-relaxed text-slate-300">
-                  Copy this secure sync payload or encode it into a QR code for your other device:
+                  Use the same passphrase on both devices. Keep it separate from the payload.
                 </p>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  aria-label="Sync passphrase"
+                  value={passphrase}
+                  onChange={(event) => setPassphrase(event.target.value)}
+                  minLength={12}
+                  placeholder="Passphrase (12+ characters)"
+                  className="hw-focus w-full rounded-lg border border-edgesoft bg-void/70 px-3 py-2 text-sm text-slate-200"
+                />
+                <Button type="button" variant="secondary" size="sm" onClick={() => void handleCreate()} loading={isWorking}>
+                  Create encrypted payload
+                </Button>
                 <textarea
                   readOnly
                   value={payloadText}
@@ -64,7 +103,7 @@ export function QrSyncModal({ mode, onClose, onSuccess, onError }: QrSyncModalPr
                   <Button type="button" variant="ghost" size="sm" onClick={onClose}>
                     Close
                   </Button>
-                  <Button type="button" variant="primary" size="sm" onClick={handleCopy}>
+                  <Button type="button" variant="primary" size="sm" onClick={() => void handleCopy()} disabled={!payloadText}>
                     Copy to Clipboard
                   </Button>
                 </div>
@@ -81,11 +120,20 @@ export function QrSyncModal({ mode, onClose, onSuccess, onError }: QrSyncModalPr
                   rows={4}
                   className="w-full rounded-xl border border-edgesoft bg-void/70 p-3 font-mono text-[11px] text-slate-200 hw-focus"
                 />
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  aria-label="Sync passphrase"
+                  value={passphrase}
+                  onChange={(event) => setPassphrase(event.target.value)}
+                  placeholder="Passphrase"
+                  className="hw-focus w-full rounded-lg border border-edgesoft bg-void/70 px-3 py-2 text-sm text-slate-200"
+                />
                 <div className="flex justify-end gap-2 pt-2">
                   <Button type="button" variant="ghost" size="sm" onClick={onClose}>
                     Cancel
                   </Button>
-                  <Button type="button" variant="primary" size="sm" onClick={handleImport}>
+                  <Button type="button" variant="primary" size="sm" onClick={() => void handleImport()} loading={isWorking}>
                     Restore Data
                   </Button>
                 </div>

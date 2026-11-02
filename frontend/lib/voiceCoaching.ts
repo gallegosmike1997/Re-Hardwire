@@ -44,11 +44,11 @@ function mapToCalmingProtocol(state: EmotionalState): string {
 /** Detect emotional state from user text using simple lexicon. */
 function detectEmotionalState(userText: string): EmotionalState {
   const lower = userText.toLowerCase();
-  const stressTerms = ['stressed', 'stress', 'panic', 'anxious', 'overwhelmed',
+  const stressTerms = ['stressed', 'stress', 'panic', 'anxious', 'overwhelmed', 'activated', 'tense', 'tension',
     'crisis', 'help', 'urgent', 'emergency'];
-  const depletionTerms = ['exhausted', 'drained', 'empty', 'burned out', 'burnout',
-    'tired', 'no energy', 'no more', 'done'];
-  const numbTerms = ['numb', 'blank', 'checked out", "don\'t care", "don't care",
+  const depletionTerms = ['exhausted', 'drained', 'empty', 'burned out', 'burnout', 'depleted', 'flat',
+    'tired', 'no energy', 'low energy', 'no more', 'done'];
+  const numbTerms = ['numb', 'blank', 'checked out', "don't care",
     'nothing matters', 'hollow'];
 
   let stressCount = 0;
@@ -69,11 +69,12 @@ function detectEmotionalState(userText: string): EmotionalState {
   const hasCalm = CALMING_SIGNALS.some((s) => lower.includes(s));
   if (hasCalm) return 'stable';
 
-  if (stressCount > 0 && depletionCount === 0 && numbCount === 0) return 'activated';
-  if (depletionCount > 0) return 'depleted';
+  if (stressCount > 1 || (stressCount > 0 && depletionCount > 0)) return 'overwhelmed';
+  if (stressCount > 0) return 'activated';
   if (numbCount > 0) return 'numb';
-  if (stressCount > 1 || depletionCount > 1) return 'overwhelmed';
-  return 'mixed';
+  if (depletionCount > 1) return 'overwhelmed';
+  if (depletionCount > 0) return 'depleted';
+  return 'stable';
 }
 
 /** Speak text using Web Speech API. */

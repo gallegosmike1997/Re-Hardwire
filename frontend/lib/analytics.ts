@@ -3,6 +3,7 @@
  * Self-focused, opt-in local analytics for Re-Hardwire.
  * Tracks usage patterns without exposing personal data.
  */
+import { getStorage, setStorage } from './storage';
 
 /** Event types tracked locally. */
 export type AnalyticsEvent =
@@ -70,5 +71,3 @@ export function hasAnalyticsConsent(): boolean {
   return true;
 }
 
-/** Exported functions */
-export { getAnalytics, addAnalytics, exportAnalytics, hasAnalyticsConsent, AnalyticsEvent };

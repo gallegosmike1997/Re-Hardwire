@@ -23,15 +23,22 @@ export interface DesktopConfig {
 function isPackagedApp(): boolean {
   // In production, this would check for Tauri/Electron contexts
   // For now, check environment indicators
-  const hasProcess = typeof process !== 'undefined';
-  const isTauri = hasProcess && process.type === 'internal'; // Simplified check
-  const isElectron = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
-  return isTauri || isElectron;
+  const runtimeProcess = typeof process === 'undefined'
+    ? undefined
+    : process as typeof process & { type?: string };
+  const isElectron = typeof window !== 'undefined'
+    && Boolean((window as Window & { __TAURI__?: unknown }).__TAURI__);
+  return runtimeProcess?.type === 'internal' || isElectron;
 }
 
 /** Get the operating system platform. */
 function getPlatform(): 'windows' | 'macos' | 'linux' {
-  if (typeof process === 'undefined') return 'linux'; // Default fallback
+  if (typeof process === 'undefined') {
+    const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent.toLowerCase();
+    if (agent.includes('windows')) return 'windows';
+    if (agent.includes('mac')) return 'macos';
+    return 'linux';
+  }
   const platform = process.platform;
   if (platform === 'win32') return 'windows';
   if (platform === 'darwin') return 'macos';
@@ -67,9 +74,8 @@ export function initializeDesktop(): void {
 
 /** Platform-specific window title. */
 function getWindowTitle(baseTitle: string): string {
-  const platform = getPlatform();
   const packaged = isPackagedApp();
-  const suffix = packaged ? ` | Re-Hardwire ${import.meta.env.VITE_APP_VERSION || '1.0'}` : '';
+  const suffix = packaged ? ` | Re-Hardwire ${process.env.NEXT_PUBLIC_APP_VERSION || '1.0'}` : '';
   return `${baseTitle} ${suffix}`;
 }
 

@@ -1,6 +1,7 @@
 /** Scale & Analytics (Weeks 241-250)
  * 1M+ users, insurance integration, employer wellness programs, and 5-year outcomes.
  */
+import { getStorage, setStorage } from './storage';
 
 /** AnalyticsEvent types for large-scale tracking. */
 export type ScaleEvent =
@@ -87,5 +88,3 @@ export function generateScaleReport(): { userCount: number; eventCounts: Record<
   return { userCount, eventCounts, regions, deviceTypes };
 }
 
-/** Exported functions */
-export { addScaleEvent, getScaleAnalytics, generateScaleReport };

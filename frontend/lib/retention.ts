@@ -17,6 +17,7 @@ export interface MemoryEntry {
 }
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const RETENTION_DAYS = 30;
 
 export function isExpiredTimestamp(createdAt: string | undefined, now = Date.now()): boolean {
   if (!createdAt) return false;

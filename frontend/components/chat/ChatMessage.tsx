@@ -10,6 +10,8 @@ import type { RouteResponse } from '@/lib/api';
 import { chooseSpeechVoice, getSpeechLanguage, getSpeechRate, loadSpeechVoices } from '@/lib/speech';
 import { useFeedbackStore, type ReplyFeedbackReason } from '@/state/useFeedbackStore';
 
+const FALLBACK_LANGUAGES = ['en-US', 'en-GB', 'es-ES', 'fr-FR', 'de-DE', 'ja-JP'];
+
 export interface ChatMessageProps {
   message: LLMMessage;
   /** Routing decision attached to the assistant turn that followed it. */
@@ -32,13 +34,10 @@ export function ChatMessage({ message, route, isStreaming = false, feedbackKey }
   const [showFeedbackReason, setShowFeedbackReason] = useState(false);
   const enabled = Boolean(profile?.preferences.ttsEnabled && profile.permissions.includes('tts'));
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const [supported, setSupported] = useState(false);
+  const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
-  // Browser capability detection must run client-side to keep server rendering stable.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
-    setSupported('speechSynthesis' in window);
     if ('speechSynthesis' in window) {
       const updateVoices = () => setVoices(window.speechSynthesis.getVoices());
       updateVoices();

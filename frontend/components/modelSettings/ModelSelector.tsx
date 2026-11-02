@@ -7,8 +7,7 @@
  *  - llama-3.2-1b (1GB) – fastest
  */
 import { config } from '@/lib/config';
-import { Card, Select, StatTile } from '@/components/ui';
-import { useState } from 'react';
+import { Card, StatTile } from '@/components/ui';
 
 export interface ModelPreset {
   model: string;
@@ -23,31 +22,21 @@ interface ModelSelectorProps {
   disabled?: boolean;
 }
 
-const MEMORY_LABELS = {
+const MEMORY_LABELS: Record<number, string> = {
   1024: '~1GB',
   2048: '~2GB',
   4096: '~4GB',
 };
 
 export function ModelSelector({ currentModel, onModelChange, disabled = false }: ModelSelectorProps) {
-  const [selectedModel, setSelectedModel] = useState<string>(currentModel || config.model.default);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const model = event.target.value;
-    setError(null);
-    setSelectedModel(model);
-    onModelChange(model);
-  };
-
-  const getPresets = (): ModelPreset[] => {
-    return Object.entries(config.model.presets).map(([model, details]) => ({
+  const selectedModel = currentModel || config.model.default;
+  const presets: ModelPreset[] = Object.entries(config.model.presets).map(([model, details]) => ({
       model,
       label: details.label,
       memoryMb: details.memoryMb,
       isCurrent: model === currentModel,
-    }));
-  };
+  }));
+  const selectedPreset = presets.find((preset) => preset.model === selectedModel);
 
   return (
     <Card title="Local AI model" subtitle="Choose which on-device language model runs your conversations.">
@@ -57,44 +46,28 @@ export function ModelSelector({ currentModel, onModelChange, disabled = false }:
           The smallest model (&lt;1GB) runs on the broadest range of devices.
         </p>
 
-        <div className="space-y-2">
-          {getPresets().map((preset) => (
-            <div
-              key={preset.model}
-              className={`hw-focus flex items-center justify-between rounded-xl border px-3 py-2 transition-colors ${
-                selectedModel === preset.model
-                  ? 'border-signal-500/40 bg-signal-500/5'
-                  : 'border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]'
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-slate-200">{preset.label}</p>
-                <p className="text-xs text-slate-500">
-                  {MEMORY_LABELS[preset.memoryMb] || `${preset.memoryMb}MB`} RAM
-                  {preset.isCurrent && '  ·  Currently active'}
-                </p>
-              </div>
-              <Select
-                value={preset.model}
-                onChange={handleChange}
-                disabled={disabled}
-                className="w-32"
-              />
-            </div>
-          ))}
-
-          {error && (
-            <p role="alert" className="text-xs text-alarm">
-              {error}
-            </p>
-          )}
-        </div>
+        <label className="flex flex-col gap-1.5 text-xs text-slate-400">
+          Model preset
+          <select
+            aria-label="Local AI model preset"
+            value={selectedModel}
+            onChange={(event) => onModelChange(event.target.value)}
+            disabled={disabled}
+            className="hw-focus rounded-lg border border-edge bg-panel px-2.5 py-2 text-sm text-slate-200"
+          >
+            {presets.map((preset) => (
+              <option key={preset.model} value={preset.model}>
+                {preset.label} · {MEMORY_LABELS[preset.memoryMb] ?? `${preset.memoryMb}MB`}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <StatTile
           label="Model"
-          value={selectedModel}
-          icon="cpu"
-          tone="info"
+          value={selectedPreset?.label ?? selectedModel}
+          icon="shield"
+          tone="signal"
         />
       </div>
     </Card>

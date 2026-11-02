@@ -55,7 +55,8 @@ def client(tmp_path, monkeypatch):
 
     from app.main import app
 
-    with TestClient(app) as test_client:
+    test_host = f"testclient-{tmp_path.name}"
+    with TestClient(app, client=(test_host, 50000)) as test_client:
         yield test_client
 
 

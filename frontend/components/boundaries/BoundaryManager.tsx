@@ -120,7 +120,7 @@ export function BoundaryManager() {
         ))}
         {boundaries.length === 0 && (
           <div className="col-span-full rounded-2xl border border-dashed border-edge p-8 text-center text-xs text-slate-500">
-            No boundaries defined yet. Click "+ New Boundary" above to set your first guardrail.
+            No boundaries defined yet. Click &quot;+ New Boundary&quot; above to set your first guardrail.
           </div>
         )}
       </div>

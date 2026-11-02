@@ -21,18 +21,27 @@ STREAM_BODY = (
 ])
 def test_stream_contract(client, auth_headers, monkeypatch, provider, lines):
     monkeypatch.setattr(settings, "llm_provider", provider)
+    monkeypatch.setattr(settings, "llm_provider_options", [provider])
     monkeypatch.setattr(settings, "llm_model", "test")
     monkeypatch.setattr(settings, "llm_api_key", "test-key")
     original = httpx.AsyncClient
 
     def respond(request):
         assert json.loads(request.content)["stream"] is True
+        payload = json.loads(request.content)
+        assert payload["stream"] is True
+        assert payload["model"] == "test-model"
         return httpx.Response(200, text="\n".join(lines) + "\n")
 
     monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: original(
         transport=httpx.MockTransport(respond), **kw))
     response = client.post(
-        "/api/llm/stream", json={"messages": [{"role": "user", "content": "Hi"}]},
+        "/api/llm/stream",
+        json={
+            "messages": [{"role": "user", "content": "Hi"}],
+            "provider": provider,
+            "model": "test-model",
+        },
         headers=auth_headers,
     )
     events = [json.loads(line) for line in response.text.splitlines()]
@@ -117,6 +126,20 @@ def test_stream_rejects_too_many_coaching_context_entries(client, auth_headers):
         json={
             "messages": [{"role": "user", "content": "Hi"}],
             "coaching_context": ["one", "two", "three", "four"],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+def test_stream_rejects_provider_not_enabled_by_backend(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(settings, "llm_provider_options", ["local"])
+    response = client.post(
+        "/api/llm/stream",
+        json={
+            "messages": [{"role": "user", "content": "Hi"}],
+            "provider": "openai",
+            "model": "gpt-4o-mini",
         },
         headers=auth_headers,
     )

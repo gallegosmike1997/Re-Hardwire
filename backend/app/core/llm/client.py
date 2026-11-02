@@ -90,9 +90,21 @@ def _local_response(
     elif emotional_state == "activated":
         core_reflection = "There is high operational tension running through your system."
         action_advice = "Pause before reacting and drop your shoulders away from your ears."
+    elif emotional_state == "depleted":
+        core_reflection = "You sound like the tank is genuinely empty, not just low."
+        action_advice = "Protect tonight's recovery window above all else."
+    elif emotional_state == "numb":
+        core_reflection = "That sounds flat - more switched off than wound up."
+        action_advice = "What is one small thing that might bring a bit of warmth or connection?"
+    elif emotional_state == "mixed":
+        core_reflection = "There is real drive in this, and real weight sitting on top of it."
+        action_advice = "What feels hardest about making that call?"
     else:
         core_reflection = "I hear the weight and intention behind what you are sharing."
         action_advice = "What is the single most supportive next step you can take?"
+
+    if next_action in FOLLOW_UPS:
+        action_advice = FOLLOW_UPS[next_action]
 
     raw_wins = (profile or {}).get("recent_wins")
     if isinstance(raw_wins, list):
@@ -119,9 +131,14 @@ class ProviderError(RuntimeError):
     """Public, sanitized provider failure; never includes credentials or transcripts."""
 
 
-def _remote_response(messages: List[dict]) -> str:
+def _remote_response(
+    messages: List[dict],
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+) -> str:
     """Use the configured provider only; never silently send data elsewhere."""
-    provider = settings.llm_provider
+    provider = provider or settings.llm_provider
+    model = model or settings.llm_model
     headers = {}
     if provider == "openai":
         if not settings.llm_api_key:
@@ -129,14 +146,14 @@ def _remote_response(messages: List[dict]) -> str:
         url = (settings.llm_base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
         headers["Authorization"] = f"Bearer {settings.llm_api_key}"
         payload = {
-            "model": settings.llm_model, "messages": messages, "stream": False,
+            "model": model, "messages": messages, "stream": False,
             "temperature": settings.llm_temperature, "max_tokens": settings.llm_max_tokens,
         }
     elif provider == "gemma":
         # Gemma provider (Google's open models)
         url = (settings.llm_base_url or "http://localhost:11434").rstrip("/") + "/api/chat"
         payload = {
-            "model": settings.llm_model,
+            "model": model,
             "messages": messages,
             "stream": False,
             "options": {"temperature": settings.llm_temperature, "num_predict": settings.llm_max_tokens},
@@ -144,12 +161,12 @@ def _remote_response(messages: List[dict]) -> str:
     elif provider == "ollama":
         url = (settings.llm_base_url or "http://localhost:11434").rstrip("/") + "/api/chat"
         payload = {
-            "model": settings.llm_model, "messages": messages, "stream": False,
+            "model": model, "messages": messages, "stream": False,
             "options": {"temperature": settings.llm_temperature, "num_predict": settings.llm_max_tokens},
         }
     else:
         raise ProviderError("Unsupported LLM_PROVIDER. Use local, openai, or ollama.")
-    if settings.llm_model == "re-hardwire-local" or not settings.llm_model.strip():
+    if model == "re-hardwire-local" or not model.strip():
         raise ProviderError("Set LLM_MODEL to a model available from the configured provider.")
     try:
         response = httpx.post(url, json=payload, headers=headers, timeout=settings.llm_timeout)
@@ -172,6 +189,8 @@ def stream_llm_response(
     emotional_state: Optional[str] = None,
     next_action: Optional[str] = None,
     profile: Optional[Mapping[str, object]] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> str:
     """Return the assistant reply for a conversation.
 
@@ -186,9 +205,12 @@ def stream_llm_response(
         return CRISIS_REPLY
     if not user_text.strip():
         return DEFAULT_CONTENT
-    if settings.llm_provider != "local":
+    selected_provider = provider or settings.llm_provider
+    if selected_provider != "local":
         return _remote_response(
-            build_messages(message_list, protocol, emotional_state, next_action, profile)
+            build_messages(message_list, protocol, emotional_state, next_action, profile),
+            provider=selected_provider,
+            model=model,
         )
 
     return _local_response(user_text, protocol, emotional_state, next_action, profile)
@@ -200,9 +222,11 @@ def generate_response(
     emotional_state: Optional[str] = None,
     next_action: Optional[str] = None,
     profile: Optional[Mapping[str, object]] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> str:
     """Alias for :func:`stream_llm_response` with a non-streaming name."""
-    return stream_llm_response(messages, protocol, emotional_state, next_action, profile)
+    return stream_llm_response(messages, protocol, emotional_state, next_action, profile, provider, model)
 
 
 def stream_chunks(text: str) -> Iterator[str]:

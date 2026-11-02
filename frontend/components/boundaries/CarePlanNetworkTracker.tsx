@@ -160,7 +160,7 @@ export function CarePlanNetworkTracker() {
         ))}
         {contacts.length === 0 && (
           <div className="col-span-full rounded-2xl border border-dashed border-edge p-8 text-center text-xs text-slate-500">
-            No contacts added to your care network yet. Click "+ Add Contact" above.
+            No contacts added to your care network yet. Click &quot;+ Add Contact&quot; above.
           </div>
         )}
       </div>

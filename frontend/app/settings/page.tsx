@@ -20,9 +20,9 @@ import {
   MAX_ENCRYPTED_BACKUP_BYTES,
   restoreEncryptedBackup,
 } from '@/lib/encryptedBackup';
-import { createSyncPayload, restoreSyncPayload } from '@/lib/qrSync';
 import { QrSyncModal } from '@/components/settings/QrSyncModal';
-import { getMemory } from '@/lib/sessionMemory';
+import { getMemory, removeMemory } from '@/lib/sessionMemory';
+import { clearActiveProfileStorage, getActiveProfileStorageEntries } from '@/lib/storage';
 
 const SPEECH_PREVIEWS: Record<string, string> = {
   de: 'Ich höre dir zu. Wir können einen Schritt nach dem anderen gehen.',
@@ -34,13 +34,11 @@ const SPEECH_PREVIEWS: Record<string, string> = {
   pt: 'Estou ouvindo. Podemos avançar um passo de cada vez.',
 };
 
+const FALLBACK_LANGUAGES = ['en-US', 'en-GB', 'es-ES', 'fr-FR', 'de-DE', 'ja-JP'];
+
 function exportLocalData() {
   const data: Record<string, unknown> = {};
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const key = localStorage.key(index);
-    if (!key?.startsWith('re-hardwire-')) continue;
-    const raw = localStorage.getItem(key);
-    if (raw === null) continue;
+  for (const [key, raw] of getActiveProfileStorageEntries()) {
     try {
       const parsed = JSON.parse(raw) as { data?: unknown };
       data[key] = parsed && typeof parsed === 'object' && 'data' in parsed ? parsed.data : parsed;
@@ -61,9 +59,7 @@ function exportLocalData() {
 }
 
 async function clearLocalData() {
-  const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
-    .filter((key): key is string => Boolean(key?.startsWith('re-hardwire-')));
-  keys.forEach((key) => localStorage.removeItem(key));
+  clearActiveProfileStorage();
   try {
     if ('caches' in window) {
       const cacheKeys = await caches.keys();
@@ -139,7 +135,6 @@ export default function SettingsPage() {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   }, []);
 
-  const FALLBACK_LANGUAGES = ['en-US', 'en-GB', 'es-ES', 'fr-FR', 'de-DE', 'ja-JP'];
   const speechLanguages = useMemo(
     () => {
       const detected = [...new Set(speechVoices.map((voice) => voice.lang).filter(Boolean))].sort();

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.config import settings
 from app.core.llm.client import ProviderError, stream_llm_response
 from app.core.llm.streaming import stream_reply
 from app.core.routing.engine import route_text
@@ -32,6 +33,20 @@ class LLMRequest(BaseModel):
     messages: List[LLMMessage] = Field(default_factory=list, max_length=40)
     protocol: Optional[str] = Field(default=None, max_length=100)
     coaching_context: List[str] = Field(default_factory=list, max_length=3)
+    model: Optional[str] = Field(default=None, max_length=120, pattern=r"^[A-Za-z0-9._:/-]+$")
+    provider: Optional[str] = Field(default=None, max_length=30)
+
+    @field_validator("provider")
+    @classmethod
+    def validate_provider(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        supported = {"local", "openai", "ollama", "gemma"}
+        configured = {item.strip().lower() for item in settings.llm_provider_options}
+        provider = value.strip().lower()
+        if provider not in supported or provider not in configured:
+            raise ValueError("provider is not enabled by the backend")
+        return provider
 
     @field_validator("coaching_context")
     @classmethod
@@ -81,6 +96,8 @@ def generate(payload: LLMRequest, claims: dict = Depends(auth.require_session)) 
             emotional_state=decision.emotional_state,
             next_action=decision.next_action,
             profile=profile,
+            provider=payload.provider,
+            model=payload.model,
         )
     except ProviderError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from None
@@ -127,6 +144,7 @@ async def generate_stream(payload: LLMRequest, claims: dict = Depends(auth.requi
             async for content in stream_reply(
                 [m.model_dump() for m in payload.messages], decision.protocol,
                 decision.emotional_state, decision.next_action, profile,
+                provider=payload.provider, model=payload.model,
             ):
                 yield event("delta", content=content)
         except ProviderError as exc:

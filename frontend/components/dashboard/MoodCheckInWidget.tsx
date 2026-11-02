@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -35,15 +35,9 @@ export function MoodCheckInWidget() {
   const [contextHints, setContextHints] = useState<ContextHints | null>(null);
   const [showContextualInfo, setShowContextualInfo] = useState(false);
 
-  useEffect(() => {
-    // Contextual hints will be populated when protocol is computed
-  }, [selected]);
-
-  const handleProtocolChange = (userText: string) => {
-    if (!userText.trim()) return;
-    
-    // Get context-aware protocol from the routing engine
-    const protocolInfo = getContextualProtocol(userText);
+  const selectMood = (mood: MoodOption) => {
+    const protocolInfo = getContextualProtocol(`${mood.label}. ${mood.description}`);
+    setSelected({ ...mood, recommendedProtocol: protocolInfo.protocol });
     setContextHints(protocolInfo.contextualHints);
     setShowContextualInfo(true);
   };
@@ -56,7 +50,7 @@ export function MoodCheckInWidget() {
             <button
               key={mood.label}
               type="button"
-              onClick={() => setSelected(mood)}
+              onClick={() => selectMood(mood)}
               className="hw-focus flex items-center gap-3 rounded-xl border border-edgesoft bg-panelsoft/55 p-3.5 text-left transition-all hover:border-signal-500/50 hover:bg-panelsoft"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-signal-500/10 text-signal-300">

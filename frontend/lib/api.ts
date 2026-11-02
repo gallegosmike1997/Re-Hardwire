@@ -18,6 +18,11 @@ export interface HealthResponse {
 export interface AppCapabilities {
   apiVersion: string;
   app: string;
+  llm?: {
+    providers: string[];
+    defaultProvider: string;
+    defaultModel: string;
+  };
   features: {
     guidedPractices: { availableOffline: boolean; packVersion: string };
     supportPlan: { availableOffline: boolean; storage: string };
@@ -43,7 +48,7 @@ export interface LLMRequest {
   messages: LLMMessage[];
   protocol?: string;
   model?: string;
-  provider?: 'local' | 'openai' | 'gemma' | 'phi3' | string;
+  provider?: 'local' | 'openai' | 'ollama' | 'gemma' | string;
   coaching_context?: string[];
 }
 

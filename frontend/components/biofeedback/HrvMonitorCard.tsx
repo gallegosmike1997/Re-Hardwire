@@ -90,7 +90,7 @@ export function HrvMonitorCard() {
           </div>
         ) : (
           <div className="rounded-xl border border-dashed border-edge p-6 text-center text-xs text-slate-500">
-            No Bluetooth heart rate sensor connected. Click "Connect HR / HRV Sensor" above to pair your device.
+            No Bluetooth heart rate sensor connected. Click &quot;Connect HR / HRV Sensor&quot; above to pair your device.
           </div>
         )}
       </div>
