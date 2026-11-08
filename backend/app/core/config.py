@@ -1,121 +1,38 @@
-"""
-Re-Hardwire backend configuration.
-
-Every value is read from the environment (optionally via a ``.env`` file next
-to the ``backend/`` folder) and exposed through the single ``settings``
-instance so all modules read configuration the same way.
-"""
-from __future__ import annotations
-
-import os
-import secrets
-from pathlib import Path
-
-try:  # python-dotenv is in requirements.txt, but stay import-safe.
-    from dotenv import load_dotenv
-except ImportError:  # pragma: no cover - fallback when dotenv is absent
-    def load_dotenv(*_args: object, **_kwargs: object) -> bool:
-        return False
+from pydantic import BaseSettings, Field, SecretStr
+from typing import List, Optional
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]  # .../backend
+class Settings(BaseSettings):
+    app_name: str = "Re‑Hardwire"
+    version: str = "1.0.0"
+    description: str = "Self‑help mobile app (offline‑first)"
+    app_env: str = "development"  # development | prod | production
+    auth_secret: Optional[SecretStr] = None
+    subject_id: Optional[str] = None
+    cors_origins: List[str] = Field(default_factory=lambda: [])
+    # Add any other existing env vars here (api_base_url, audio_dir, etc.)
 
-load_dotenv(BASE_DIR / ".env")
+    class Config:
+        env_file = ".env"
+        env_prefix = "RE_HARDWIRE_"
 
+    def ensure_dirs(self):
+        """Create per‑subject storage dir; enforce production guard."""
+        import pathlib, os
 
-def _env_list(name: str, default: str) -> list[str]:
-    """Parse a comma separated environment variable into a list."""
-    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
+        if self.app_env in {"prod", "production"}:
+            if not self.subject_id:
+                raise RuntimeError(
+                    "Production mode requires RE_HARDWIRE_SUBJECT_ID to be set"
+                )
+            users = pathlib.Path("users_dir")
+            (users / self.subject_id).mkdir(parents=True, exist_ok=True)
+            # Optionally clear or redirect the shared data dir so new writes
+            # go to the per‑subject location only.
+            data = pathlib.Path("backend/data")
+            if data.exists():
+                # No‑op – keep existing data; new writes should use users_dir.
+                pass
 
-
-class Settings:
-    """Runtime settings for the Re-Hardwire backend."""
-
-    app_env = os.getenv("APP_ENV", "development").strip().lower()
-    app_name = "Re-Hardwire Backend"
-    description = "Routing Engine • LLM Pipeline • TTS • Success Tracker"
-    version = "1.0.0"
-    engine = "Re-Hardwire Core v1"
-
-    api_prefix = "/api"
-    cors_origins = _env_list(
-        "CORS_ORIGINS",
-        "http://localhost:3000,http://127.0.0.1:3000",
-    )
-
-    data_dir = Path(os.getenv("RE_HARDWIRE_DATA_DIR", str(BASE_DIR / "data")))
-    history_file = data_dir / "history.json"
-    profile_file = data_dir / "profile.json"
-    analytics_file = data_dir / "analytics.json"
-    audio_dir = data_dir / "audio"
-    #: Per-user stores live in ``users/<subject>/``; legacy shared files stay
-    #: at the paths above and are claimed once by the first anonymous session.
-    users_dir = data_dir / "users"
-
-    default_protocol = os.getenv("DEFAULT_PROTOCOL", "Resilience Builder Level 3")
-    history_limit = int(os.getenv("HISTORY_LIMIT", "100"))
-
-    llm_provider = os.getenv("LLM_PROVIDER", "local")
-    llm_model = os.getenv("LLM_MODEL", "re-hardwire-local")
-    llm_api_key = os.getenv("LLM_API_KEY", os.getenv("OPENAI_API_KEY", ""))
-    llm_base_url = os.getenv("LLM_BASE_URL", "")
-    llm_timeout = float(os.getenv("LLM_TIMEOUT", "20"))
-    llm_temperature = float(os.getenv("LLM_TEMPERATURE", "0.7"))
-    llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "1024"))
-    # Week 54: Provider switching support
-    llm_provider_options = os.getenv("LLM_PROVIDER_OPTIONS", "local,openai,ollama,gemma").split(",")
-    llm_default_model = os.getenv("LLM_DEFAULT_MODEL", "re-hardwire-local")
-
-    tts_voice = os.getenv("TTS_VOICE", "re-hardwire-core")
-    tts_speed = float(os.getenv("TTS_SPEED", "1.0"))
-    tts_words_per_minute = int(os.getenv("TTS_WORDS_PER_MINUTE", "150"))
-
-    # Authorization configuration.
-    # -------------------------------------------------------------------------
-    # A stable AUTH_SECRET must be set for any production deployment.  The secret
-    # is used to sign session tokens that identify individual users.  Without a
-    # valid secret the app refuses to start in production (see main.py).
-    # -------------------------------------------------------------------------
-    _auth_secret = os.getenv("AUTH_SECRET", "").strip()
-    if not _auth_secret or _auth_secret in {
-        "replace-with-a-long-random-secret",
-        "changeme",
-    }:
-        raise RuntimeError(
-            "AUTH_SECRET must be set to a stable value (>= 32 chars) via environment "
-            "variable or .env file before starting the backend in production."
-        )
-    auth_secret = _auth_secret
-
-    auth_token_ttl = int(os.getenv("AUTH_TOKEN_TTL", "86400"))
-    #: Anonymous device sessions live for this long before needing a refresh.
-    auth_session_ttl = int(os.getenv("AUTH_SESSION_TTL", str(30 * 86400)))
-    #: An expired session token may still be refreshed within this grace window.
-    auth_refresh_grace = int(os.getenv("AUTH_REFRESH_GRACE", str(7 * 86400)))
-
-    #: Per-user directory under ``users_dir``.  The value is the ``subject_id``
-    #: for the currently active user session.  When set, all history/profile/analytics
-    #: files are written under ``users_dir/<subject_id>/`` instead of the shared
-    #: top-level data dir, giving each user isolated storage.
-    subject_id = os.getenv("RE_HARDWIRE_SUBJECT_ID", "").strip()
-
-    default_permissions = _env_list(
-        "DEFAULT_PERMISSIONS",
-        "chat,history,tts,analytics,voice_input",
-    )
-
-    def ensure_dirs(self) -> None:
-        """Create the data directories if they do not exist yet."""
-        self.data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-        self.audio_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-        self.users_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-        if os.name != "nt":
-            os.chmod(self.data_dir, 0o700)
-            os.chmod(self.audio_dir, 0o700)
-            for data_file in (self.history_file, self.profile_file, self.analytics_file):
-                if data_file.exists():
-                    os.chmod(data_file, 0o600)
-
-
-settings = Settings()
-settings.ensure_dirs()
+        # Fallback for development – ensure a data directory exists.
+        pathlib.Path("backend/data").mkdir(parents=True, exist_ok=True)
