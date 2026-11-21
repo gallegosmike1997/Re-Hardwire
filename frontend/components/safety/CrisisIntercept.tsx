@@ -6,9 +6,10 @@ interface CrisisInterceptProps {
   onSendAnyway: () => void;
   onChoosePractice: () => void;
   onDismiss: () => void;
+  onContinueAnyway: () => void;
 }
 
-export function CrisisIntercept({ onSendAnyway, onChoosePractice, onDismiss }: CrisisInterceptProps) {
+export function CrisisIntercept({ onSendAnyway, onChoosePractice, onDismiss, onContinueAnyway }: CrisisInterceptProps) {
   return (
     <div
       role="alertdialog"
@@ -43,6 +44,9 @@ export function CrisisIntercept({ onSendAnyway, onChoosePractice, onDismiss }: C
         </Button>
       </div>
       <div className="mt-3 flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
+        <Button variant="ghost" size="sm" onClick={onContinueAnyway}>
+          I'm okay, continue
+        </Button>
         <Button variant="ghost" size="sm" onClick={onSendAnyway}>
           Send anyway
         </Button>

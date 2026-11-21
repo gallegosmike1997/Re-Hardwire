@@ -50,6 +50,7 @@ export function ChatComposer() {
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [showCrisis, setShowCrisis] = useState(false);
   const [lastSendAt, setLastSendAt] = useState(0);
+  const [showSavePrompt, setShowSavePrompt] = useState(false);
   const router = useRouter();
 
   // Browser capability detection must run client-side to keep server rendering stable.
@@ -208,6 +209,7 @@ export function ChatComposer() {
                 onSendAnyway={() => submit(true)}
                 onChoosePractice={() => { router.push('/tools#grounding'); }}
                 onDismiss={() => { setShowCrisis(false); areaRef.current?.focus(); }}
+                onContinueAnyway={() => { setShowCrisis(false); }}
               />
             </div>
           )}
