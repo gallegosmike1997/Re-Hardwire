@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "packVersion": "1.0.0",
+  "packVersion": "1.1.0",
   "reviewStatus": "independent_review_pending",
   "clinicalReviewSharing": "disabled",
   "practices": [
@@ -9,6 +9,12 @@
     { "id": "helpful-thinking", "category": "think", "source": "VA Skills for Psychological Recovery" },
     { "id": "next-step", "category": "act", "source": "VA Skills for Psychological Recovery" },
     { "id": "small-activity", "category": "act", "source": "VA Skills for Psychological Recovery" },
-    { "id": "connection", "category": "connect", "source": "VA Skills for Psychological Recovery" }
+    { "id": "connection", "category": "connect", "source": "VA Skills for Psychological Recovery" },
+    { "id": "fidget-grounding", "category": "sensory", "source": "Commercially-recognized sensory grounding tools" },
+    { "id": "fidget-focus", "category": "sensory", "source": "Commercially-recognized focus/fidget interventions" },
+    { "id": "cognitive-challenge", "category": "cognitive", "source": "Evidence-based cognitive training exercises" },
+    { "id": "thought-record", "category": "cognitive", "source": "CBT thought record adaptations" },
+    { "id": "behavior-activation", "category": "act", "source": "Behavioral activation therapy tools" },
+    { "id": "mindful-noting", "category": "settle", "source": "Mindfulness-based stress reduction practices" }
   ]
 }

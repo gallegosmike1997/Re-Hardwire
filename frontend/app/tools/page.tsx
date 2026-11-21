@@ -8,7 +8,7 @@ import { usePracticeStore } from '@/state/usePracticeStore';
 type Skill = {
   id: string;
   title: string;
-  group: 'Settle' | 'Think' | 'Act' | 'Connect';
+  group: 'Settle' | 'Think' | 'Act' | 'Connect' | 'Sensory' | 'Cognitive';
   time: string;
   description: string;
   source: string;
@@ -111,8 +111,107 @@ const SKILLS: Skill[] = [
     ],
   },
 ];
+  {
+    id: 'mindful-noting',
+    title: 'Mindful noting',
+    group: 'Settle',
+    time: '3 minutes',
+    description: 'Observe thoughts without judgment, letting them pass like clouds.',
+    source: 'Mindfulness-based stress reduction practices',
+    sourceUrl: '#',
+    steps: [
+      'Sit comfortably and close your eyes if that feels okay.',
+      'Notice thoughts as they arise, naming them silently (e.g., "planning", "worrying").',
+      'Label each thought and let it pass without engaging or judging.',
+      'Return attention to the breath or body whenever you get caught up.',
+    ],
+    careNote: 'If noticing thoughts increases anxiety, stop and choose a grounding practice instead.',
+  },
+};
+  {
+    id: 'fidget-grounding',
+    title: 'Sensory grounding',
+    group: 'Sensory',
+    time: '3 minutes',
+    description: 'Use touch and texture to anchor attention to the present moment.',
+    source: 'Commercially-recognized sensory grounding tools',
+    sourceUrl: '#',
+    steps: [
+      'Place your hand on a textured surface (table, fabric, stone).',
+      'Notice the temperature, pressure, and pattern beneath your palm.',
+      'Shift focus to the sensations in your fingers and palm.',
+      'Take three slow breaths while maintaining contact with the surface.',
+    ],
+    careNote: 'If tactile sensations become overwhelming, discontinue and choose another practice.',
+  },
+  {
+    id: 'fidget-focus',
+    title: 'Focus fidget',
+    group: 'Sensory',
+    time: '2 minutes',
+    description: 'Channel restless energy into a simple, repeatable hand movement.',
+    source: 'Commercially-recognized focus/fidget interventions',
+    sourceUrl: '#',
+    steps: [
+      'Choose a small object (worry stone, pen, fabric edge).',
+      'Run your thumb back and forth along one edge.',
+      'Count each pass or notice the rhythm of the motion.',
+      'When attention wanders, gently return focus to the movement.',
+    ],
+    careNote: 'Stop if the fidget movement increases agitation rather than reducing it.',
+  },
+  {
+    id: 'cognitive-challenge',
+    title: 'Cognitive challenge',
+    group: 'Cognitive',
+    time: '5 minutes',
+    description: 'Identify and question a thought distortion using structured steps.',
+    source: 'Evidence-based cognitive training exercises',
+    sourceUrl: '#',
+    steps: [
+      'Name the troubling thought in one sentence.',
+      'Identify the cognitive distortion (e.g., "all-or-nothing", "catastrophizing").',
+      'Ask: "Is there evidence for and against this thought?"',
+      'Generate a balanced alternative thought.',
+    ],
+    careNote: 'If distress increases, stop and return later or choose a grounding practice.',
+  },
+  {
+    id: 'thought-record',
+    title: 'Thought record',
+    group: 'Cognitive',
+    time: '7 minutes',
+    description: 'Write down a stressful thought and examine it with balanced questions.',
+    source: 'CBT thought record adaptations',
+    sourceUrl: '#',
+    steps: [
+      'Describe the situation that triggered the thought.',
+      'Record the automatic thought and rate your belief in it (0-100%).',
+      'Identify the emotion and its intensity.',
+      'Answer: "What evidence supports this thought?" and "What evidence contradicts it?"',
+      'Write a balanced alternative thought and rate your new belief.',
+    ],
+    careNote: 'Stop if the exercise increases rumination; revisit when feeling more stable.',
+  },
+  {
+    id: 'behavior-activation',
+    title: 'Behavioral activation',
+    group: 'Act',
+    time: '5 minutes',
+    description: 'Choose one small activity to reconnect with valued living.',
+    source: 'Behavioral activation therapy tools',
+    sourceUrl: '#',
+    steps: [
+      'List one activity you used to enjoy or found meaningful.',
+      'Shrink it to the smallest manageable version.',
+      'Schedule it for today at a specific time.',
+      'Afterward, note what you experienced without judgment.',
+    ],
+    careNote: 'If completing the activity feels impossible, start with something even smaller.',
+  },
+};
 
-const GROUPS = ['All tools', 'Saved for later', 'Settle', 'Think', 'Act', 'Connect'] as const;
+const GROUPS = ['All tools', 'Saved for later', 'Settle', 'Think', 'Act', 'Connect', 'Sensory', 'Cognitive'] as const;
 
 export default function ToolsPage() {
   const [query, setQuery] = useState('');
